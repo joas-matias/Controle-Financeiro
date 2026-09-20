@@ -284,6 +284,7 @@ body.dark-theme .secondary-button {
 .transaction-info {
     min-width: 0;
     flex: 1;
+    text-align: left;
 }
 
 .transaction-info strong,
