@@ -1,0 +1,513 @@
+/* ================================================================
+   CONFIGURAÇÕES GERAIS E CORES DO APLICATIVO
+   ================================================================ */
+
+:root {
+    --background: #f5f7fb;
+    --surface: #ffffff;
+    --text: #182034;
+    --muted: #768099;
+    --line: #e8ebf2;
+    --primary: #5a55e8;
+    --primary-dark: #3833ba;
+    --income: #18a66b;
+    --expense: #eb5f68;
+    --shadow: 0 12px 36px rgba(25, 34, 59, 0.08);
+}
+
+/* ================================================================
+   TEMA ESCURO: PALETA EM GRAFITE E DOURADO
+   Esta classe é colocada no body pelo JavaScript ao apertar a lua.
+   ================================================================ */
+
+body.dark-theme {
+    --background: #12130f;
+    --surface: #1c1d17;
+    --text: #f4eedb;
+    --muted: #afa991;
+    --line: #34352b;
+    --primary: #d6a934;
+    --primary-dark: #9c7417;
+    --income: #64ca91;
+    --expense: #f1837c;
+    --shadow: 0 12px 36px rgba(0, 0, 0, 0.32);
+}
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--background);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+    font: inherit;
+}
+
+button {
+    border: 0;
+    cursor: pointer;
+}
+
+/* ================================================================
+   ESTRUTURA PRINCIPAL
+   ================================================================ */
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: max(22px, env(safe-area-inset-top)) 20px 18px;
+}
+
+.eyebrow {
+    margin: 0 0 3px;
+    color: var(--primary);
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+}
+
+h1,
+h2,
+h3,
+p {
+    margin-top: 0;
+}
+
+h1 {
+    margin-bottom: 0;
+    font-size: 1.55rem;
+    letter-spacing: -0.04em;
+}
+
+.month-button {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: 0 2px 10px rgba(20, 32, 52, 0.05);
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+/* BOTÃO COM O ÍCONE DE LUA/SOL PARA MUDAR O TEMA DO APLICATIVO */
+
+.topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.theme-button {
+    display: grid;
+    width: 39px;
+    height: 39px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--primary);
+    box-shadow: 0 2px 10px rgba(20, 32, 52, 0.05);
+    font-size: 1.2rem;
+}
+
+.app-main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 0 16px 110px;
+}
+
+/* ================================================================
+   CARTÃO DE RESUMO
+   ================================================================ */
+
+.summary-card {
+    overflow: hidden;
+    border-radius: 22px;
+    background: linear-gradient(135deg, #5c57e9, #3430a9);
+    color: white;
+    box-shadow: 0 14px 28px rgba(70, 65, 199, 0.27);
+}
+
+/* NO TEMA ESCURO, O RESUMO USA UM GRADIENTE DE GRAFITE E DOURADO */
+
+body.dark-theme .summary-card {
+    background: linear-gradient(135deg, #292a20, #7e5b12);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.3);
+}
+
+.summary-main {
+    padding: 22px 22px 19px;
+}
+
+.summary-main span,
+.summary-details small {
+    display: block;
+    opacity: 0.78;
+    font-size: 0.78rem;
+}
+
+.summary-main strong {
+    display: block;
+    margin-top: 5px;
+    font-size: 2rem;
+    letter-spacing: -0.06em;
+}
+
+.summary-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.summary-details div {
+    position: relative;
+    padding: 13px 22px 16px 36px;
+}
+
+.summary-details b {
+    display: block;
+    margin-top: 3px;
+    font-size: 0.9rem;
+}
+
+.income-dot,
+.expense-dot {
+    position: absolute;
+    top: 17px;
+    left: 22px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.income-dot { background: #74ebba; }
+.expense-dot { background: #ff9ca1; }
+
+/* ================================================================
+   CONTEÚDO DAS TELAS E LISTAS
+   ================================================================ */
+
+.section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 28px 4px 12px;
+}
+
+.section-head h2 {
+    margin: 0;
+    font-size: 1.05rem;
+}
+
+.text-button {
+    padding: 4px;
+    background: transparent;
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.list-card,
+.categories-grid,
+.settings-list {
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: var(--surface);
+    box-shadow: 0 3px 12px rgba(30, 41, 59, 0.025);
+}
+
+/* SUPERFÍCIES ADICIONAIS QUE GANHAM CONTRASTE NO MODO ESCURO */
+
+body.dark-theme .category-icon,
+body.dark-theme .icon-button {
+    background: #303126;
+    color: #e5be57;
+}
+
+body.dark-theme .form-group input,
+body.dark-theme .form-group select,
+body.dark-theme .form-group textarea {
+    border-color: #45463a;
+    background: #25261e;
+    color: var(--text);
+}
+
+body.dark-theme .conditional-fields,
+body.dark-theme .secondary-button {
+    background: #28291f;
+    color: #e5be57;
+}
+
+.transaction-row,
+.settings-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 70px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line);
+    background-color: transparent;
+}
+
+.transaction-row:last-child,
+.settings-row:last-child {
+    border-bottom: 0;
+}
+
+.category-icon {
+    display: grid;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 13px;
+    background: #eef0ff;
+    font-size: 1.15rem;
+}
+
+.transaction-info {
+    min-width: 0;
+    flex: 1;
+    text-align: left;
+}
+
+.transaction-info strong,
+.transaction-info small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.transaction-info strong { font-size: 0.9rem; }
+.transaction-info small { margin-top: 4px; color: var(--muted); font-size: 0.74rem; }
+
+.transaction-value { font-size: 0.88rem; font-weight: 800; white-space: nowrap; }
+.transaction-value.expense { color: var(--expense); }
+.transaction-value.income { color: var(--income); }
+
+.delete-button {
+    width: 28px;
+    padding: 4px;
+    background: transparent;
+    color: #a2a9ba;
+    font-size: 1.15rem;
+}
+
+.categories-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    overflow: hidden;
+}
+
+.category-total {
+    min-height: 106px;
+    padding: 14px 9px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    text-align: center;
+}
+
+.category-total:nth-child(3n) { border-right: 0; }
+.category-total:nth-last-child(-n + 3) { border-bottom: 0; }
+.category-total span { display: block; font-size: 1.35rem; }
+.category-total small { display: block; margin-top: 5px; color: var(--muted); font-size: 0.68rem; }
+.category-total b { display: block; margin-top: 4px; font-size: 0.79rem; }
+
+.empty-state {
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.empty-icon { margin-bottom: 12px; color: var(--primary); font-size: 2.2rem; }
+.empty-state h3 { margin-bottom: 7px; font-size: 1rem; }
+.empty-state p { margin-bottom: 0; color: var(--muted); font-size: 0.85rem; }
+
+/* ================================================================
+   CARTÕES DE CRÉDITO
+   ================================================================ */
+
+.credit-card {
+    position: relative;
+    overflow: hidden;
+    min-height: 168px;
+    margin-bottom: 13px;
+    padding: 20px;
+    border-radius: 20px;
+    color: white;
+    box-shadow: 0 10px 18px rgba(19, 25, 43, 0.16);
+}
+
+.credit-card::after {
+    position: absolute;
+    top: -48px;
+    right: -30px;
+    width: 160px;
+    height: 160px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 50%;
+    content: "";
+}
+
+.card-bank { position: relative; z-index: 1; font-size: 1rem; font-weight: 800; }
+.card-limit-label { position: relative; z-index: 1; margin: 42px 0 3px; opacity: 0.76; font-size: 0.72rem; }
+.card-available { position: relative; z-index: 1; font-size: 1.22rem; font-weight: 800; }
+.card-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.72rem; opacity: 0.92; }
+.card-actions { position: absolute; z-index: 2; top: 14px; right: 14px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.18); color: white; font-size: 0.75rem; font-weight: 800; }
+
+/* ================================================================
+   NAVEGAÇÃO E BOTÃO FLUTUANTE
+   ================================================================ */
+
+.bottom-nav {
+    position: fixed;
+    z-index: 5;
+    bottom: 0;
+    left: 50%;
+    display: flex;
+    width: min(100%, 760px);
+    min-height: calc(70px + env(safe-area-inset-bottom));
+    padding: 7px 10px calc(7px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    border-top: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(16px);
+}
+
+/* NAVEGAÇÃO FIXA NO TEMA ESCURO */
+
+body.dark-theme .bottom-nav {
+    background: rgba(28, 29, 23, 0.94);
+}
+
+.nav-item {
+    flex: 1;
+    background: transparent;
+    color: #8a92a5;
+    font-size: 0.67rem;
+}
+
+.nav-item span { display: block; margin-bottom: 2px; font-size: 1.22rem; line-height: 1; }
+.nav-item.active { color: var(--primary); font-weight: 800; }
+
+.fab {
+    position: fixed;
+    z-index: 6;
+    right: max(20px, calc((100vw - 720px) / 2));
+    bottom: calc(83px + env(safe-area-inset-bottom));
+    display: grid;
+    width: 54px;
+    height: 54px;
+    place-items: center;
+    border-radius: 18px;
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 10px 20px rgba(75, 70, 210, 0.35);
+    font-size: 2rem;
+    font-weight: 300;
+}
+
+/* ================================================================
+   JANELAS MODAIS E FORMULÁRIOS
+   ================================================================ */
+
+.modal-backdrop {
+    position: fixed;
+    z-index: 20;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    background: rgba(16, 22, 37, 0.45);
+    backdrop-filter: blur(3px);
+}
+
+.modal-backdrop.hidden { display: none; }
+
+.modal {
+    width: 100%;
+    max-height: 91vh;
+    overflow: auto;
+    padding: 18px 20px calc(26px + env(safe-area-inset-bottom));
+    border-radius: 24px 24px 0 0;
+    background: var(--surface);
+}
+
+.modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.modal-header h2 { margin: 0; font-size: 1.2rem; }
+.icon-button { width: 34px; height: 34px; border-radius: 50%; background: #f0f2f7; color: var(--text); font-size: 1.55rem; line-height: 1; }
+
+.form-group { margin-bottom: 15px; }
+.form-group label { display: block; margin-bottom: 7px; color: #4d576c; font-size: 0.78rem; font-weight: 750; }
+.form-group input, .form-group select, .form-group textarea {
+    width: 100%;
+    padding: 13px;
+    outline: none;
+    border: 1px solid #dce1eb;
+    border-radius: 12px;
+    background: #fbfcff;
+    color: var(--text);
+}
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px #ebeaff; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.toggle-line { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; margin-bottom: 8px; }
+.toggle-line label { margin: 0; }
+.switch { position: relative; width: 46px; height: 26px; }
+.switch input { position: absolute; opacity: 0; }
+.slider { position: absolute; inset: 0; border-radius: 20px; background: #d9deea; transition: .2s; }
+.slider::after { position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: white; content: ""; transition: .2s; }
+.switch input:checked + .slider { background: var(--primary); }
+.switch input:checked + .slider::after { transform: translateX(20px); }
+.conditional-fields { display: none; padding: 13px; margin-bottom: 15px; border-radius: 14px; background: #f6f6ff; }
+.conditional-fields.visible { display: block; }
+
+.color-options { display: flex; flex-wrap: wrap; gap: 9px; }
+.color-choice { position: relative; width: 31px; height: 31px; border: 3px solid transparent; border-radius: 50%; }
+.color-choice.selected { border-color: var(--text); }
+.color-choice input { position: absolute; opacity: 0; }
+.color-custom { width: 42px; height: 32px; padding: 1px; border: 0; background: transparent; }
+.submit-button { width: 100%; padding: 15px; border-radius: 13px; background: var(--primary); color: white; font-weight: 800; }
+.secondary-button { width: 100%; padding: 13px; margin-top: 10px; border-radius: 13px; background: #f0f1ff; color: var(--primary); font-weight: 800; }
+
+.quick-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.quick-option { padding: 21px 12px; border-radius: 16px; background: #f2f3ff; color: var(--primary); font-weight: 800; text-align: center; }
+.quick-option span { display: block; margin-bottom: 7px; font-size: 1.4rem; }
+
+/* AVISO EXIBIDO ANTES DE IMPORTAR UM BACKUP E SUBSTITUIR OS DADOS ATUAIS */
+
+.import-notice {
+    padding: 12px;
+    margin-bottom: 17px;
+    border-left: 3px solid var(--primary);
+    border-radius: 0 10px 10px 0;
+    background: #f4f4ff;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
+body.dark-theme .import-notice {
+    background: #28291f;
+}
+
+@media (min-width: 700px) {
+    .modal-backdrop { align-items: center; padding: 25px; }
+    .modal { max-width: 560px; padding: 24px; border-radius: 22px; }
+    .app-main { padding-left: 20px; padding-right: 20px; }
+}
