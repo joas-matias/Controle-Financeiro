@@ -8,6 +8,7 @@ const THEME_KEY = "meuBolsoTema";
 
 const state = {
     screen: "home",
+    expenseView: "all",
     selectedMonth: new Date().toISOString().slice(0, 7),
     data: loadData()
 };
@@ -247,16 +248,95 @@ function renderExpenses() {
         ...incomes.map(item => ({ ...item, kind: "income" }))
     ].sort((a, b) => b.date.localeCompare(a.date));
 
+    const isPaymentView = state.expenseView === "payments";
+
     return `
         <div class="section-head">
-            <h2>Todos os lançamentos</h2>
+            <h2>${isPaymentView ? "Controle de pagamentos" : "Todos os lançamentos"}</h2>
             <button class="text-button" data-action="add-income" type="button">Adicionar receita</button>
         </div>
 
+        <!-- ABAS PARA ALTERNAR ENTRE O EXTRATO E A LISTA DE PAGAMENTO DAS DESPESAS -->
+        <div class="status-tabs" role="tablist" aria-label="Visualização de despesas">
+            <button class="status-tab ${!isPaymentView ? "active" : ""}" data-expense-view="all" type="button">Lançamentos</button>
+            <button class="status-tab ${isPaymentView ? "active" : ""}" data-expense-view="payments" type="button">A pagar</button>
+        </div>
+
         <div class="list-card">
-            ${allTransactions.length ? allTransactions.map(item => renderTransaction(item, item.kind, true)).join("") : renderEmpty("Escolha outro mês ou adicione um lançamento.")}
+            ${isPaymentView
+                ? (expenses.length ? expenses.map(renderPaymentRow).join("") : renderEmpty("Não há despesas para pagar neste mês."))
+                : (allTransactions.length ? allTransactions.map(item => renderTransaction(item, item.kind, true)).join("") : renderEmpty("Escolha outro mês ou adicione um lançamento."))}
         </div>
     `;
+}
+
+/* ================================================================
+   CONTROLE DE PAGAMENTO
+   Cada despesa tem um status independente em cada mês/parcelamento.
+   ================================================================ */
+
+function renderPaymentRow(expense) {
+    const status = getPaymentStatus(expense, state.selectedMonth);
+    const category = categories[expense.category] || categories.outros;
+    const card = state.data.cards.find(savedCard => savedCard.id === expense.cardId);
+    const dueDate = getPaymentDueDate(expense, state.selectedMonth, card);
+    const installmentText = expense.type === "installment"
+        ? `Parcela ${monthDifference(expense.invoiceMonth, state.selectedMonth) + 1} de ${expense.installments}`
+        : card ? card.bank : "Pagamento direto";
+    const statusText = status === "paid" ? "Pago" : status === "overdue" ? "Atrasado" : `Vence: ${formatDateForStatus(dueDate)}`;
+
+    return `
+        <div class="transaction-row payment-row ${status}">
+            <div class="category-icon">${category.icon}</div>
+            <div class="transaction-info">
+                <strong>${escapeHtml(expense.description)}</strong>
+                <small>${installmentText} · ${statusText}</small>
+            </div>
+            <span class="transaction-value expense">${formatMoney(getExpenseAmountForMonth(expense, state.selectedMonth))}</span>
+            <button class="paid-button ${status === "paid" ? "is-paid" : ""}" data-payment-id="${expense.id}" aria-label="${status === "paid" ? "Marcar como não pago" : "Marcar como pago"}" type="button">${status === "paid" ? "✓" : "○"}</button>
+        </div>
+    `;
+}
+
+// Esta função retorna pago, atrasado ou pendente para a despesa no mês visualizado.
+function getPaymentStatus(expense, monthKey) {
+    if (expense.paidMonths?.includes(monthKey)) {
+        return "paid";
+    }
+
+    const dueDate = getPaymentDueDate(expense, monthKey);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return dueDate < today ? "overdue" : "pending";
+}
+
+// Para cartão, o prazo é o vencimento da fatura; para outros gastos, é o dia informado.
+function getPaymentDueDate(expense, monthKey, card = null) {
+    const foundCard = card || state.data.cards.find(savedCard => savedCard.id === expense.cardId);
+    const day = foundCard ? Number(foundCard.dueDay) : Number(expense.date.slice(8, 10));
+    const [year, month] = monthKey.split("-").map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+
+    return new Date(year, month - 1, Math.min(day, lastDay), 12);
+}
+
+function toggleExpensePaid(expenseId) {
+    const expense = state.data.expenses.find(item => item.id === expenseId);
+
+    if (!expense) return;
+
+    expense.paidMonths = expense.paidMonths || [];
+    const monthIndex = expense.paidMonths.indexOf(state.selectedMonth);
+
+    if (monthIndex >= 0) {
+        expense.paidMonths.splice(monthIndex, 1);
+    } else {
+        expense.paidMonths.push(state.selectedMonth);
+    }
+
+    saveData();
+    render();
 }
 
 function renderTransaction(item, kind, canDelete = false) {
@@ -359,6 +439,17 @@ function bindScreenEvents() {
 
     document.querySelectorAll("[data-delete]").forEach(button => {
         button.addEventListener("click", () => deleteTransaction(button.dataset.kind, button.dataset.delete));
+    });
+
+    document.querySelectorAll("[data-expense-view]").forEach(button => {
+        button.addEventListener("click", () => {
+            state.expenseView = button.dataset.expenseView;
+            render();
+        });
+    });
+
+    document.querySelectorAll("[data-payment-id]").forEach(button => {
+        button.addEventListener("click", () => toggleExpensePaid(button.dataset.paymentId));
     });
 }
 
@@ -650,6 +741,11 @@ function createId() {
 
 function formatDate(date) {
     return new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR");
+}
+
+// Formata uma data já criada pela função de vencimento, sem alterar o fuso horário.
+function formatDateForStatus(date) {
+    return date.toLocaleDateString("pt-BR");
 }
 
 function escapeHtml(value) {

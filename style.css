@@ -223,6 +223,36 @@ body.dark-theme .summary-card {
     font-weight: 800;
 }
 
+/* ================================================================
+   ABAS DE LANÇAMENTOS E CONTROLE DE PAGAMENTO
+   Permitem alternar entre o extrato e as despesas que devem ser pagas.
+   ================================================================ */
+
+.status-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+    padding: 5px;
+    margin: 0 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--surface);
+}
+
+.status-tab {
+    padding: 10px;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 0.8rem;
+    font-weight: 800;
+}
+
+.status-tab.active {
+    background: var(--primary);
+    color: white;
+}
+
 .list-card,
 .categories-grid,
 .settings-list {
@@ -262,7 +292,31 @@ body.dark-theme .secondary-button {
     min-height: 70px;
     padding: 10px 14px;
     border-bottom: 1px solid var(--line);
-    background-color: transparent;
+}
+
+/* BOTÕES DA ÁREA "ORGANIZAÇÃO": REMOVE O FUNDO PADRÃO CINZA/BRANCO DO NAVEGADOR */
+
+.settings-row {
+    width: 100%;
+    background: transparent;
+    color: var(--text);
+    text-align: left;
+}
+
+.settings-row:hover,
+.settings-row:focus-visible {
+    background: color-mix(in srgb, var(--primary) 8%, transparent);
+    outline: none;
+}
+
+/* NO TEMA ESCURO, O TEXTO FICA CLARO PARA CONTRASTAR COM O FUNDO GRAFITE */
+
+body.dark-theme .settings-row {
+    color: #f4eedb;
+}
+
+body.dark-theme .settings-row small {
+    color: #d3c8a7;
 }
 
 .transaction-row:last-child,
@@ -284,7 +338,6 @@ body.dark-theme .secondary-button {
 .transaction-info {
     min-width: 0;
     flex: 1;
-    text-align: left;
 }
 
 .transaction-info strong,
@@ -301,6 +354,68 @@ body.dark-theme .secondary-button {
 .transaction-value { font-size: 0.88rem; font-weight: 800; white-space: nowrap; }
 .transaction-value.expense { color: var(--expense); }
 .transaction-value.income { color: var(--income); }
+
+/* CORES DO STATUS: VERDE PARA PAGO, VERMELHO PARA ATRASADO E NORMAL PARA PENDENTE */
+
+.payment-row {
+    transition: background 0.2s ease;
+}
+
+.payment-row.paid {
+    background: #eaf9f0;
+}
+
+.payment-row.overdue {
+    background: #fff0f0;
+}
+
+.payment-row.paid .transaction-value {
+    color: var(--income);
+}
+
+.payment-row.overdue .transaction-value {
+    color: #d94852;
+}
+
+.paid-button {
+    display: grid;
+    flex: 0 0 31px;
+    width: 31px;
+    height: 31px;
+    place-items: center;
+    padding: 0;
+    border: 2px solid #b9c1cf;
+    border-radius: 50%;
+    background: transparent;
+    color: #8d96a8;
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.paid-button.is-paid {
+    border-color: var(--income);
+    background: var(--income);
+    color: white;
+}
+
+/* VERSÕES DAS CORES DE STATUS PARA O TEMA ESCURO GRAFITE E DOURADO */
+
+body.dark-theme .payment-row.paid {
+    background: #1d3a2b;
+}
+
+body.dark-theme .payment-row.overdue {
+    background: #422629;
+}
+
+body.dark-theme .payment-row.overdue .transaction-value {
+    color: #ff9c98;
+}
+
+body.dark-theme .paid-button {
+    border-color: #777663;
+    color: #d7d2bd;
+}
 
 .delete-button {
     width: 28px;
