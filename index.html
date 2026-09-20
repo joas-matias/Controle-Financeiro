@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0d1526">
+    <title>Meu Bolso</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <!-- CABEÇALHO PRINCIPAL E SELETOR DO MÊS EXIBIDO -->
+    <header class="topbar">
+        <div>
+            <p class="eyebrow">CONTROLE FINANCEIRO</p>
+            <h1>Meu Bolso</h1>
+        </div>
+
+        <!-- AÇÕES DO CABEÇALHO: TEMA ESCURO E ESCOLHA DO MÊS -->
+        <div class="topbar-actions">
+            <!-- BOTÃO QUE ALTERNA ENTRE TEMA CLARO E TEMA ESCURO DOURADO -->
+            <button class="theme-button" id="themeButton" type="button" aria-label="Ativar tema escuro">
+                <span id="themeIcon" aria-hidden="true">☾</span>
+            </button>
+
+            <button class="month-button" id="monthButton" type="button" aria-label="Alterar mês">
+                <span id="currentMonthLabel"></span>
+                <span aria-hidden="true">⌄</span>
+            </button>
+        </div>
+    </header>
+
+    <main class="app-main">
+        <!-- RESUMO DO MÊS: RECEBIDO, GASTO E SALDO -->
+        <section class="summary-card" aria-label="Resumo financeiro do mês">
+            <div class="summary-main">
+                <span>Saldo do mês</span>
+                <strong id="balanceValue">R$ 0,00</strong>
+            </div>
+
+            <div class="summary-details">
+                <div>
+                    <span class="income-dot"></span>
+                    <small>Recebido</small>
+                    <b id="incomeValue">R$ 0,00</b>
+                </div>
+
+                <div>
+                    <span class="expense-dot"></span>
+                    <small>Gasto</small>
+                    <b id="expenseValue">R$ 0,00</b>
+                </div>
+            </div>
+        </section>
+
+        <!-- ÁREA QUE MUDA CONFORME A ABA SELECIONADA -->
+        <section id="screenContent"></section>
+    </main>
+
+    <!-- BOTÃO CENTRAL PARA ADICIONAR UMA RECEITA OU DESPESA -->
+    <button class="fab" id="quickAddButton" type="button" aria-label="Adicionar lançamento">+</button>
+
+    <!-- NAVEGAÇÃO INFERIOR, OTIMIZADA PARA O USO COM O POLEGAR -->
+    <nav class="bottom-nav" aria-label="Navegação principal">
+        <button class="nav-item active" data-screen="home" type="button"><span>⌂</span>Início</button>
+        <button class="nav-item" data-screen="expenses" type="button"><span>↗</span>Despesas</button>
+        <button class="nav-item" data-screen="cards" type="button"><span>▣</span>Cartões</button>
+        <button class="nav-item" data-screen="more" type="button"><span>•••</span>Mais</button>
+    </nav>
+
+    <!-- MODAL REUTILIZÁVEL PARA TODOS OS FORMULÁRIOS -->
+    <div class="modal-backdrop hidden" id="modalBackdrop">
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-header">
+                <h2 id="modalTitle"></h2>
+                <button class="icon-button" id="closeModalButton" type="button" aria-label="Fechar">×</button>
+            </div>
+
+            <div id="modalContent"></div>
+        </section>
+    </div>
+
+    <!-- MODELO DE FORMULÁRIO: O JAVASCRIPT PREENCHE O CONTEÚDO -->
+    <template id="emptyStateTemplate">
+        <div class="empty-state">
+            <div class="empty-icon">⌁</div>
+            <h3>Nada por aqui ainda</h3>
+            <p>Use o botão + para registrar seu primeiro lançamento.</p>
+        </div>
+    </template>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
