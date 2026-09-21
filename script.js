@@ -6,14 +6,8 @@
 const STORAGE_KEY = "meuBolsoDadosV1";
 const THEME_KEY = "meuBolsoTema";
 
-const state = {
-    screen: "home",
-    expenseView: "all",
-    selectedMonth: new Date().toISOString().slice(0, 7),
-    data: loadData()
-};
-
-const categories = {
+/* CATEGORIAS INICIAIS: A PESSOA PODE EDITÁ-LAS NA ÁREA "MAIS". */
+const defaultCategories = {
     combustivel: { name: "Combustível", icon: "⛽" },
     passagens: { name: "Passagens", icon: "🚌" },
     alimentacao_uf: { name: "Alimentação UF", icon: "🍽️" },
@@ -24,6 +18,14 @@ const categories = {
     outros: { name: "Outros", icon: "•••" }
 };
 
+/* ESTADO ATUAL DO APLICATIVO: É CRIADO DEPOIS DAS CATEGORIAS PADRÃO. */
+const state = {
+    screen: "home",
+    expenseView: "all",
+    selectedMonth: new Date().toISOString().slice(0, 7),
+    data: loadData()
+};
+
 /* ================================================================
    INICIALIZAÇÃO E DADOS PADRÃO
    ================================================================ */
@@ -32,14 +34,39 @@ function loadData() {
     const savedData = localStorage.getItem(STORAGE_KEY);
 
     if (savedData) {
-        return JSON.parse(savedData);
+        return normalizeData(JSON.parse(savedData));
     }
 
     return {
         cards: [],
         expenses: [],
-        incomes: []
+        incomes: [],
+        categories: createDefaultCategories()
     };
+}
+
+// Garante que backups e dados antigos também recebam as novas categorias editáveis.
+function normalizeData(data) {
+    const savedCategories = data.categories && typeof data.categories === "object" ? data.categories : createDefaultCategories();
+
+    if (!savedCategories.outros) {
+        savedCategories.outros = { ...defaultCategories.outros };
+    }
+
+    return {
+        cards: Array.isArray(data.cards) ? data.cards : [],
+        expenses: Array.isArray(data.expenses) ? data.expenses : [],
+        incomes: Array.isArray(data.incomes) ? data.incomes : [],
+        categories: savedCategories
+    };
+}
+
+function createDefaultCategories() {
+    return Object.fromEntries(Object.entries(defaultCategories).map(([key, category]) => [key, { ...category }]));
+}
+
+function getCategories() {
+    return state.data.categories;
 }
 
 function saveData() {
@@ -147,7 +174,13 @@ function getCurrentMonthExpenses() {
 }
 
 function getCurrentMonthIncomes() {
-    return state.data.incomes.filter(income => income.date.slice(0, 7) === state.selectedMonth);
+    return state.data.incomes.filter(income => {
+        if (income.type === "fixed") {
+            return income.date.slice(0, 7) <= state.selectedMonth;
+        }
+
+        return income.date.slice(0, 7) === state.selectedMonth;
+    });
 }
 
 /* ================================================================
@@ -219,12 +252,13 @@ function renderHome() {
 }
 
 function renderCategoryTotals(expenses) {
-    const totals = Object.keys(categories).map(key => {
+    const currentCategories = getCategories();
+    const totals = Object.keys(currentCategories).map(key => {
         const total = expenses
             .filter(expense => expense.category === key)
             .reduce((sum, expense) => sum + getExpenseAmountForMonth(expense, state.selectedMonth), 0);
 
-        return { ...categories[key], total };
+        return { ...currentCategories[key], total };
     });
 
     return `
@@ -277,7 +311,7 @@ function renderExpenses() {
 
 function renderPaymentRow(expense) {
     const status = getPaymentStatus(expense, state.selectedMonth);
-    const category = categories[expense.category] || categories.outros;
+    const category = getCategories()[expense.category] || getCategories().outros || { icon: "•", name: "Outros" };
     const card = state.data.cards.find(savedCard => savedCard.id === expense.cardId);
     const dueDate = getPaymentDueDate(expense, state.selectedMonth, card);
     const installmentText = expense.type === "installment"
@@ -341,9 +375,11 @@ function toggleExpensePaid(expenseId) {
 
 function renderTransaction(item, kind, canDelete = false) {
     const isIncome = kind === "income";
-    const category = isIncome ? { icon: "↓", name: "Recebido" } : categories[item.category] || categories.outros;
+    const category = isIncome ? { icon: "↓", name: "Recebido" } : getCategories()[item.category] || getCategories().outros || { icon: "•", name: "Outros" };
     const card = state.data.cards.find(savedCard => savedCard.id === item.cardId);
-    const installmentText = item.type === "installment"
+    const installmentText = item.type === "fixed"
+        ? "Receita fixa mensal"
+        : item.type === "installment"
         ? `${monthDifference(item.invoiceMonth, state.selectedMonth) + 1}/${item.installments} parcelas`
         : item.type === "recurring" ? "Assinatura recorrente" : (card ? card.bank : item.paymentMethod || "À vista");
     const value = isIncome ? Number(item.amount) : getExpenseAmountForMonth(item, state.selectedMonth);
@@ -402,6 +438,7 @@ function renderMore() {
         <div class="settings-list">
             <button class="settings-row" data-action="add-income" type="button"><div class="category-icon">↓</div><div class="transaction-info"><strong>Adicionar recebido</strong><small>Salário, aluguel, renda extra...</small></div><span>›</span></button>
             <button class="settings-row" data-action="add-card" type="button"><div class="category-icon">▣</div><div class="transaction-info"><strong>Novo cartão</strong><small>Banco, limite, fechamento e vencimento</small></div><span>›</span></button>
+            <button class="settings-row" data-action="manage-categories" type="button"><div class="category-icon">⌘</div><div class="transaction-info"><strong>Editar categorias</strong><small>Adicione, edite ou remova categorias de despesas</small></div><span>›</span></button>
             <!-- BOTÃO QUE BAIXA UM ARQUIVO DE BACKUP PARA LEVAR A OUTRO NAVEGADOR -->
             <button class="settings-row" data-action="export" type="button"><div class="category-icon">⇩</div><div class="transaction-info"><strong>Exportar backup</strong><small>Baixe seus cartões e lançamentos em um arquivo</small></div><span>›</span></button>
             <!-- BOTÃO QUE RESTAURA UM ARQUIVO DE BACKUP BAIXADO ANTERIORMENTE -->
@@ -457,6 +494,7 @@ function handleAction(action, cardId) {
     if (action === "add-expense") openExpenseForm();
     if (action === "add-income") openIncomeForm();
     if (action === "add-card") openCardForm();
+    if (action === "manage-categories") openCategoryManager();
     if (action === "edit-card") openCardForm(state.data.cards.find(card => card.id === cardId));
     if (action === "export") exportData();
     if (action === "import") openImportForm();
@@ -499,7 +537,7 @@ function openQuickAdd() {
 
 function openExpenseForm() {
     const cardOptions = state.data.cards.map(card => `<option value="${card.id}">${escapeHtml(card.bank)}</option>`).join("");
-    const categoryOptions = Object.entries(categories).map(([key, category]) => `<option value="${key}">${category.icon} ${category.name}</option>`).join("");
+    const categoryOptions = Object.entries(getCategories()).map(([key, category]) => `<option value="${key}">${category.icon} ${category.name}</option>`).join("");
 
     openModal("Adicionar despesa", `
         <form id="expenseForm">
@@ -566,17 +604,117 @@ function openIncomeForm() {
         <form id="incomeForm">
             <div class="form-group"><label for="incomeDescription">O que você recebeu?</label><input id="incomeDescription" required placeholder="Ex.: Salário"></div>
             <div class="form-row"><div class="form-group"><label for="incomeAmount">Valor (R$)</label><input id="incomeAmount" type="number" min="0.01" step="0.01" required placeholder="0,00"></div><div class="form-group"><label for="incomeDate">Data do recebimento</label><input id="incomeDate" type="date" required value="${new Date().toISOString().slice(0, 10)}"></div></div>
+            <!-- OPÇÃO PARA TRANSFORMAR UM SALÁRIO OU RENDA EM RECEBIMENTO MENSAL AUTOMÁTICO -->
+            <div class="toggle-line"><label for="isFixedIncome">É um recebido fixo mensal?</label><label class="switch"><input id="isFixedIncome" type="checkbox"><span class="slider"></span></label></div>
+            <p class="form-help">Ex.: marque para salário, aluguel ou outra renda que se repete todo mês.</p>
             <button class="submit-button" type="submit">Salvar recebido</button>
         </form>
     `);
 
     document.getElementById("incomeForm").addEventListener("submit", event => {
         event.preventDefault();
-        state.data.incomes.push({ id: createId(), description: document.getElementById("incomeDescription").value.trim(), amount: Number(document.getElementById("incomeAmount").value), date: document.getElementById("incomeDate").value });
+        state.data.incomes.push({
+            id: createId(),
+            description: document.getElementById("incomeDescription").value.trim(),
+            amount: Number(document.getElementById("incomeAmount").value),
+            date: document.getElementById("incomeDate").value,
+            type: document.getElementById("isFixedIncome").checked ? "fixed" : "single"
+        });
         saveData();
         closeModal();
         render();
     });
+}
+
+/* ================================================================
+   EDIÇÃO DE CATEGORIAS
+   Permite criar, renomear e remover as categorias usadas nas despesas.
+   ================================================================ */
+
+function openCategoryManager() {
+    const categoryRows = Object.entries(getCategories()).map(([id, category]) => `
+        <div class="category-manager-row">
+            <span class="category-icon">${escapeHtml(category.icon)}</span>
+            <strong>${escapeHtml(category.name)}</strong>
+            <button class="small-action" data-edit-category="${id}" type="button">Editar</button>
+            ${id !== "outros" ? `<button class="small-action danger" data-remove-category="${id}" type="button">Remover</button>` : ""}
+        </div>
+    `).join("");
+
+    openModal("Editar categorias", `
+        <p class="form-help">As categorias aparecem no resumo mensal e no cadastro de despesas.</p>
+        <div class="category-manager-list">${categoryRows}</div>
+        <button id="newCategoryButton" class="secondary-button" type="button">+ Adicionar categoria</button>
+    `);
+
+    document.getElementById("newCategoryButton").addEventListener("click", () => openCategoryForm());
+    document.querySelectorAll("[data-edit-category]").forEach(button => {
+        button.addEventListener("click", () => openCategoryForm(button.dataset.editCategory));
+    });
+    document.querySelectorAll("[data-remove-category]").forEach(button => {
+        button.addEventListener("click", () => removeCategory(button.dataset.removeCategory));
+    });
+}
+
+// Abre o formulário para uma categoria nova ou uma categoria que será alterada.
+function openCategoryForm(categoryId = null) {
+    const category = categoryId ? getCategories()[categoryId] : null;
+
+    openModal(category ? "Editar categoria" : "Adicionar categoria", `
+        <form id="categoryForm">
+            <div class="form-row"><div class="form-group"><label for="categoryIcon">Ícone</label><input id="categoryIcon" required maxlength="4" value="${category ? escapeHtml(category.icon) : "🏷️"}" placeholder="Ex.: 🚌"></div><div class="form-group"><label for="categoryName">Nome da categoria</label><input id="categoryName" required maxlength="28" value="${category ? escapeHtml(category.name) : ""}" placeholder="Ex.: Estudos"></div></div>
+            <button class="submit-button" type="submit">${category ? "Salvar categoria" : "Adicionar categoria"}</button>
+        </form>
+    `);
+
+    document.getElementById("categoryForm").addEventListener("submit", event => saveCategory(event, categoryId));
+}
+
+function saveCategory(event, categoryId) {
+    event.preventDefault();
+    const name = document.getElementById("categoryName").value.trim();
+    const icon = document.getElementById("categoryIcon").value.trim();
+
+    if (categoryId) {
+        state.data.categories[categoryId] = { name, icon };
+    } else {
+        const newId = createCategoryId(name);
+        state.data.categories[newId] = { name, icon };
+    }
+
+    saveData();
+    openCategoryManager();
+    render();
+}
+
+// Cria um identificador simples para a categoria e evita repetir nomes já existentes.
+function createCategoryId(name) {
+    const baseId = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "categoria";
+    let id = baseId;
+    let counter = 2;
+
+    while (getCategories()[id]) {
+        id = `${baseId}_${counter}`;
+        counter += 1;
+    }
+
+    return id;
+}
+
+function removeCategory(categoryId) {
+    const category = getCategories()[categoryId];
+
+    if (!category || categoryId === "outros") return;
+
+    if (!confirm(`Remover a categoria "${category.name}"? As despesas dela serão movidas para "Outros".`)) return;
+
+    state.data.expenses.forEach(expense => {
+        if (expense.category === categoryId) expense.category = "outros";
+    });
+    delete state.data.categories[categoryId];
+    saveData();
+    openCategoryManager();
+    render();
 }
 
 function openCardForm(card = null) {
@@ -706,7 +844,7 @@ function importData() {
                 return;
             }
 
-            state.data = importedData;
+            state.data = normalizeData(importedData);
             saveData();
             closeModal();
             render();
@@ -730,7 +868,7 @@ function isValidBackup(data) {
 
 function clearData() {
     if (!confirm("Tem certeza? Todos os cartões, despesas e receitas serão apagados.")) return;
-    state.data = { cards: [], expenses: [], incomes: [] };
+    state.data = { cards: [], expenses: [], incomes: [], categories: createDefaultCategories() };
     saveData();
     render();
 }
