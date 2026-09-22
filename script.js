@@ -62,7 +62,41 @@ function normalizeData(data) {
         incomes: Array.isArray(data.incomes) ? data.incomes : [],
         categories: savedCategories,
         // RESERVA E METAS: BACKUPS ANTIGOS AINDA NÃO TINHAM ESSAS INFORMAÇÕES
-        savings: data.savings && typeof data.savings === "object" ? { balance: Number(data.savings.balance) || 0 } : createDefaultSavings(),
+        /*
+    RESERVA
+
+    Esta parte é importante porque existem dados antigos
+    salvos no navegador.
+
+    Um usuário que já utilizava o aplicativo antes desta
+    atualização não terá necessariamente:
+
+        reservedByMonth
+        withdrawnByMonth
+
+    Portanto, verificamos se essas informações existem.
+    Se não existirem, criamos objetos vazios.
+*/
+savings: data.savings && typeof data.savings === "object"
+    ? {
+        // Recupera o valor total atualmente guardado.
+        balance: Number(data.savings.balance) || 0,
+
+        // Recupera os valores reservados por mês.
+        reservedByMonth:
+            data.savings.reservedByMonth &&
+            typeof data.savings.reservedByMonth === "object"
+                ? data.savings.reservedByMonth
+                : {},
+
+        // Recupera os valores retirados da reserva por mês.
+        withdrawnByMonth:
+            data.savings.withdrawnByMonth &&
+            typeof data.savings.withdrawnByMonth === "object"
+                ? data.savings.withdrawnByMonth
+                : {}
+    }
+    : createDefaultSavings(),
         goals: Array.isArray(data.goals) ? data.goals.map(goal => ({
             id: goal.id,
             name: goal.name,
@@ -72,8 +106,42 @@ function normalizeData(data) {
     };
 }
 
+/* ================================================================
+   ESTRUTURA PADRÃO DA RESERVA
+   ================================================================ */
+
+/*
+    A reserva possui três informações principais:
+
+    balance:
+        Guarda quanto dinheiro existe atualmente na reserva.
+
+    reservedByMonth:
+        Registra quanto foi retirado do dinheiro disponível
+        de cada mês para ser colocado na reserva.
+
+    withdrawnByMonth:
+        Registra quanto foi retirado da reserva e devolvido
+        ao dinheiro disponível de cada mês.
+*/
 function createDefaultSavings() {
-    return { balance: 0 };
+    return {
+        // Valor total atualmente guardado na reserva.
+        balance: 0,
+
+        // Exemplo:
+        // "2026-09": 1000
+        //
+        // Significa que R$ 1.000 foram reservados em setembro/2026.
+        reservedByMonth: {},
+
+        // Exemplo:
+        // "2026-09": 300
+        //
+        // Significa que R$ 300 foram retirados da reserva
+        // e voltaram a ficar disponíveis em setembro/2026.
+        withdrawnByMonth: {}
+    };
 }
 
 function createDefaultCategories() {
@@ -91,6 +159,63 @@ function getSavings() {
 
 function saveData() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state.data));
+}
+
+/* ================================================================
+   CONTROLE DAS MOVIMENTAÇÕES DA RESERVA
+   ================================================================ */
+
+/*
+    Retorna quanto foi reservado utilizando o dinheiro
+    disponível do mês selecionado.
+
+    IMPORTANTE:
+
+    Isso NÃO retorna o saldo total da reserva.
+
+    Exemplo:
+
+    Reserva total:
+        R$ 5.000
+
+    Reserva feita em setembro:
+        R$ 1.000
+
+    Esta função retornará:
+        R$ 1.000
+
+    e não R$ 5.000.
+*/
+function getReservedAmountForMonth(monthKey = state.selectedMonth) {
+    const savings = getSavings();
+
+    return Number(
+        savings.reservedByMonth?.[monthKey]
+    ) || 0;
+}
+
+/*
+    Retorna quanto foi retirado da reserva
+    e devolvido ao dinheiro disponível no mês.
+
+    Exemplo:
+
+    Você retirou R$ 300 da reserva em setembro.
+
+    Então:
+
+        withdrawnByMonth["2026-09"] = 300
+
+    Esta função retornará:
+
+        300
+*/
+function getWithdrawnAmountForMonth(monthKey = state.selectedMonth) {
+    const savings = getSavings();
+
+    return Number(
+        savings.withdrawnByMonth?.[monthKey]
+    ) || 0;
 }
 
 /* ================================================================
@@ -214,13 +339,142 @@ function render() {
     updateNavigation();
 }
 
-function renderSummary() {
-    const incomes = getCurrentMonthIncomes().reduce((sum, income) => sum + Number(income.amount), 0);
-    const expenses = getCurrentMonthExpenses().reduce((sum, expense) => sum + getExpenseAmountForMonth(expense, state.selectedMonth), 0);
+/* ================================================================
+   RESUMO FINANCEIRO DO MÊS
+   ================================================================ */
 
-    document.getElementById("incomeValue").textContent = formatMoney(incomes);
-    document.getElementById("expenseValue").textContent = formatMoney(expenses);
-    document.getElementById("balanceValue").textContent = formatMoney(incomes - expenses);
+/*
+    O resumo agora considera a reserva.
+
+    A lógica financeira é:
+
+        Recebido disponível
+        =
+        Recebido real
+        - Valor reservado
+        + Valor retirado da reserva
+
+    Depois:
+
+        Saldo do mês
+        =
+        Recebido disponível
+        - Gastos
+
+    ---------------------------------------------------------------
+
+    EXEMPLO:
+
+    Recebido:
+        R$ 3.000
+
+    Reservado:
+        R$ 1.000
+
+    Gastos:
+        R$ 500
+
+    Resultado:
+
+        Recebido disponível = 3.000 - 1.000
+        Recebido disponível = 2.000
+
+        Saldo = 2.000 - 500
+        Saldo = 1.500
+
+    ---------------------------------------------------------------
+
+    Se posteriormente você retirar R$ 300 da reserva:
+
+        Recebido disponível = 3.000 - 1.000 + 300
+        Recebido disponível = 2.300
+
+        Saldo = 2.300 - 500
+        Saldo = 1.800
+
+    Ao mesmo tempo, a reserva passa de:
+
+        R$ 1.000
+
+    para:
+
+        R$ 700
+*/
+function renderSummary() {
+
+    /*
+        Primeiro calculamos quanto realmente entrou
+        no mês através das receitas.
+    */
+    const totalIncomes = getCurrentMonthIncomes()
+        .reduce(
+            (sum, income) => sum + Number(income.amount),
+            0
+        );
+
+    /*
+        Quanto foi reservado utilizando o dinheiro
+        recebido neste mês?
+    */
+    const reserved = getReservedAmountForMonth(
+        state.selectedMonth
+    );
+
+    /*
+        Quanto foi retirado da reserva neste mês?
+    */
+    const withdrawn = getWithdrawnAmountForMonth(
+        state.selectedMonth
+    );
+
+    /*
+        Agora calculamos quanto realmente está
+        disponível para utilização.
+
+        Reserva diminui.
+        Retirada da reserva aumenta.
+    */
+    const availableIncome = Math.max(
+        totalIncomes - reserved + withdrawn,
+        0
+    );
+
+    /*
+        Calculamos os gastos normalmente.
+    */
+    const expenses = getCurrentMonthExpenses()
+        .reduce(
+            (sum, expense) =>
+                sum +
+                getExpenseAmountForMonth(
+                    expense,
+                    state.selectedMonth
+                ),
+            0
+        );
+
+    /*
+        Finalmente calculamos o saldo disponível.
+    */
+    const balance = availableIncome - expenses;
+
+    /*
+        Atualiza o valor "Recebido" na interface.
+    */
+    document.getElementById("incomeValue").textContent =
+        formatMoney(availableIncome);
+
+    /*
+        Atualiza o valor "Gasto".
+    */
+    document.getElementById("expenseValue").textContent =
+        formatMoney(expenses);
+
+    /*
+        Atualiza o "Saldo do mês".
+    */
+    document.getElementById("balanceValue").textContent =
+        formatMoney(balance);
 }
 
 function renderScreen() {
@@ -681,36 +935,180 @@ function openIncomeForm() {
    separados com um objetivo de valor e uma barra de progresso.
    ================================================================ */
 
-function openSavingsPanel() {
-    const savings = getSavings();
-    const goals = state.data.goals;
-    const monthIncome = getCurrentMonthIncomes().reduce((sum, income) => sum + Number(income.amount), 0);
+/* ================================================================
+   PAINEL DA RESERVA / COFRINHO
+   ================================================================ */
 
+/*
+    Abre o painel que aparece quando o usuário toca
+    no botão 🐷.
+
+    Aqui mostramos:
+
+        - total guardado
+        - editar valor
+        - adicionar valor
+        - retirar valor
+        - metas de compra
+*/
+function openSavingsPanel() {
+
+    // Recupera o objeto da reserva.
+    const savings = getSavings();
+
+    // Recupera todas as metas cadastradas.
+    const goals = state.data.goals;
+
+    /*
+        Calcula quanto foi recebido no mês.
+
+        Esse valor é usado apenas para mostrar
+        quanto existe disponível para uma possível reserva.
+    */
+    const monthIncome = getCurrentMonthIncomes()
+        .reduce(
+            (sum, income) => sum + Number(income.amount),
+            0
+        );
+
+    /*
+        Abre a janela principal da reserva.
+    */
     openModal("Minha reserva", `
-        <!-- VALOR TOTAL GUARDADO, PODE SER EDITADO QUANDO RENDER NO BANCO -->
+
+        <!-- =====================================================
+             TOTAL DA RESERVA
+             ===================================================== -->
+
         <div class="savings-total">
             <span>Total guardado</span>
-            <strong>${formatMoney(savings.balance)}</strong>
+
+            <strong>
+                ${formatMoney(savings.balance)}
+            </strong>
         </div>
+
+
+        <!-- =====================================================
+             BOTÕES DA RESERVA
+             ===================================================== -->
 
         <div class="savings-actions">
-            <button class="secondary-button" id="editSavingsButton" type="button">Editar valor</button>
-            <button class="submit-button" id="addSavingsButton" type="button">Adicionar valor</button>
+
+            <!-- Editar manualmente o valor total -->
+            <button
+                class="secondary-button"
+                id="editSavingsButton"
+                type="button"
+            >
+                Editar valor
+            </button>
+
+
+            <!-- Retirar dinheiro da reserva -->
+            <button
+                class="secondary-button"
+                id="withdrawSavingsButton"
+                type="button"
+            >
+                Retirar valor
+            </button>
+
+
+            <!-- Adicionar dinheiro à reserva -->
+            <button
+                class="submit-button"
+                id="addSavingsButton"
+                type="button"
+            >
+                Adicionar valor
+            </button>
+
         </div>
 
-        <div class="section-head"><h2>Minhas metas</h2></div>
 
-        <div class="goals-list" id="goalsList">
-            ${goals.length ? goals.map(renderGoalRow).join("") : renderEmpty("Crie uma meta para acompanhar o progresso de uma compra, como trocar de moto.")}
+        <!-- =====================================================
+             METAS DE COMPRA
+             ===================================================== -->
+
+        <div class="section-head">
+            <h2>Minhas metas</h2>
         </div>
 
-        <button class="secondary-button" id="newGoalButton" type="button">+ Nova meta</button>
+        <div
+            class="goals-list"
+            id="goalsList"
+        >
+            ${
+                goals.length
+                    ? goals.map(renderGoalRow).join("")
+                    : renderEmpty(
+                        "Crie uma meta para acompanhar o progresso de uma compra, como trocar de moto."
+                    )
+            }
+        </div>
+
+        <button
+            class="secondary-button"
+            id="newGoalButton"
+            type="button"
+        >
+            + Nova meta
+        </button>
     `);
 
-    document.getElementById("editSavingsButton").addEventListener("click", () => openEditSavingsForm());
-    document.getElementById("addSavingsButton").addEventListener("click", () => openAddSavingsForm(monthIncome));
-    document.getElementById("newGoalButton").addEventListener("click", () => openGoalForm());
 
+    /* ============================================================
+       BOTÃO EDITAR RESERVA
+       ============================================================ */
+
+    document
+        .getElementById("editSavingsButton")
+        .addEventListener(
+            "click",
+            () => openEditSavingsForm()
+        );
+
+
+    /* ============================================================
+       BOTÃO ADICIONAR À RESERVA
+       ============================================================ */
+
+    document
+        .getElementById("addSavingsButton")
+        .addEventListener(
+            "click",
+            () => openAddSavingsForm(monthIncome)
+        );
+
+
+    /* ============================================================
+       BOTÃO RETIRAR DA RESERVA
+       ============================================================ */
+
+    document
+        .getElementById("withdrawSavingsButton")
+        .addEventListener(
+            "click",
+            () => openWithdrawSavingsForm()
+        );
+
+
+    /* ============================================================
+       NOVA META
+       ============================================================ */
+
+    document
+        .getElementById("newGoalButton")
+        .addEventListener(
+            "click",
+            () => openGoalForm()
+        );
+
+
+    /*
+        Liga os eventos dos botões das metas.
+    */
     bindGoalEvents();
 }
 
@@ -771,32 +1169,371 @@ function openEditSavingsForm() {
 }
 
 // Abre o formulário para somar um novo valor à reserva, com atalho para usar o recebido do mês.
+/* ================================================================
+   ADICIONAR DINHEIRO À RESERVA
+   ================================================================ */
+
+/*
+    Abre o formulário para colocar dinheiro no cofrinho.
+
+    O usuário pode escolher:
+
+        [ ] Diminuir do recebido total
+
+    Se estiver marcado:
+
+        Recebido: R$ 3.000
+        Reserva:  R$ 1.000
+
+        Recebido disponível:
+        R$ 2.000
+
+    Se estiver desmarcado:
+
+        O dinheiro será simplesmente acrescentado
+        ao saldo total da reserva sem alterar o
+        recebido disponível daquele mês.
+*/
+// Abre o formulário para adicionar dinheiro à reserva.
 function openAddSavingsForm(monthIncome) {
+
+    // Descobre quanto já foi reservado neste mês.
+    const reservedThisMonth =
+        getReservedAmountForMonth(state.selectedMonth);
+
+    // Calcula quanto do recebido ainda está disponível para reservar.
+    const availableIncome =
+        Math.max(monthIncome - reservedThisMonth, 0);
+
+
     openModal("Adicionar à reserva", `
-        ${monthIncome > 0 ? `<button class="secondary-button" id="useIncomeButton" type="button">Usar recebido do mês: ${formatMoney(monthIncome)}</button>` : ""}
-        <div class="form-group"><label for="savingsAddValue">Valor a adicionar (R$)</label><input id="savingsAddValue" type="number" min="0.01" step="0.01" required placeholder="0,00"></div>
-        <button class="submit-button" id="confirmAddSavingsButton" type="button">Adicionar</button>
-    `);
 
-    if (monthIncome > 0) {
-        document.getElementById("useIncomeButton").addEventListener("click", () => {
-            document.getElementById("savingsAddValue").value = monthIncome;
-        });
-    }
-
-    document.getElementById("confirmAddSavingsButton").addEventListener("click", () => {
-        const amount = Number(document.getElementById("savingsAddValue").value);
-
-        if (!amount || amount <= 0) {
-            alert("Informe um valor válido.");
-            return;
+        ${
+            availableIncome > 0
+                ? `
+                    <button
+                        class="secondary-button"
+                        id="useIncomeButton"
+                        type="button"
+                    >
+                        Usar recebido disponível:
+                        ${formatMoney(availableIncome)}
+                    </button>
+                `
+                : ""
         }
 
-        state.data.savings.balance += amount;
-        saveData();
-        openSavingsPanel();
-    });
+
+        <div class="form-group">
+
+            <label for="savingsAddValue">
+                Valor a adicionar (R$)
+            </label>
+
+            <input
+                id="savingsAddValue"
+                type="number"
+                min="0.01"
+                step="0.01"
+                required
+                placeholder="0,00"
+            >
+
+        </div>
+
+
+        <div class="toggle-line">
+
+            <label for="deductFromIncome">
+                Diminuir do recebido total
+            </label>
+
+            <label class="switch">
+
+                <input
+                    id="deductFromIncome"
+                    type="checkbox"
+                >
+
+                <span class="slider"></span>
+
+            </label>
+
+        </div>
+
+
+        <p class="form-help">
+            Marque esta opção se o dinheiro reservado saiu
+            do valor que você recebeu neste mês.
+        </p>
+
+
+        <button
+            class="submit-button"
+            id="confirmAddSavingsButton"
+            type="button"
+        >
+            Adicionar
+        </button>
+
+    `);
+
+
+    /*
+        Botão para preencher automaticamente o valor
+        disponível no mês.
+    */
+    if (availableIncome > 0) {
+
+        document
+            .getElementById("useIncomeButton")
+            .addEventListener("click", () => {
+
+                document.getElementById(
+                    "savingsAddValue"
+                ).value = availableIncome.toFixed(2);
+
+                document.getElementById(
+                    "deductFromIncome"
+                ).checked = true;
+
+            });
+    }
+
+
+    /*
+        Botão "Adicionar".
+    */
+    document
+        .getElementById("confirmAddSavingsButton")
+        .addEventListener("click", () => {
+
+            const amount = Number(
+                document.getElementById(
+                    "savingsAddValue"
+                ).value
+            );
+
+            const deductFromIncome =
+                document.getElementById(
+                    "deductFromIncome"
+                ).checked;
+
+
+            /*
+                Verifica se o valor é válido.
+            */
+            if (!amount || amount <= 0) {
+
+                alert("Informe um valor válido.");
+
+                return;
+            }
+
+
+            /*
+                Não permite reservar mais dinheiro
+                do que o recebido disponível.
+            */
+            if (
+                deductFromIncome &&
+                amount > availableIncome
+            ) {
+
+                alert(
+                    `Você só possui ${formatMoney(
+                        availableIncome
+                    )} de recebido disponível para reservar neste mês.`
+                );
+
+                return;
+            }
+
+
+            /*
+                Adiciona o dinheiro à reserva geral.
+            */
+            state.data.savings.balance += amount;
+
+
+            /*
+                Se o usuário marcou a opção,
+                registramos que esse dinheiro saiu
+                do recebido deste mês.
+            */
+            if (deductFromIncome) {
+
+                state.data.savings.reservedByMonth =
+                    state.data.savings.reservedByMonth || {};
+
+
+                state.data.savings.reservedByMonth[
+                    state.selectedMonth
+                ] =
+                    getReservedAmountForMonth(
+                        state.selectedMonth
+                    ) + amount;
+            }
+
+
+            /*
+                Salva os dados.
+            */
+            saveData();
+
+
+            /*
+                Atualiza novamente o painel da reserva.
+            */
+            openSavingsPanel();
+
+        });
 }
+
+/* ================================================================
+   RETIRAR DINHEIRO DA RESERVA
+   ================================================================ */
+
+function openWithdrawSavingsForm() {
+
+    // Recupera a reserva atual.
+    const savings = getSavings();
+
+
+    openModal("Retirar da reserva", `
+
+        <p class="form-help">
+            Retire um valor da sua reserva quando precisar utilizar
+            o dinheiro guardado. O valor retirado ficará novamente
+            disponível no saldo do mês.
+        </p>
+
+
+        <div class="savings-total">
+
+            <span>
+                Disponível na reserva
+            </span>
+
+            <strong>
+                ${formatMoney(savings.balance)}
+            </strong>
+
+        </div>
+
+
+        <div class="form-group">
+
+            <label for="savingsWithdrawValue">
+                Valor a retirar (R$)
+            </label>
+
+            <input
+                id="savingsWithdrawValue"
+                type="number"
+                min="0.01"
+                max="${savings.balance}"
+                step="0.01"
+                required
+                placeholder="0,00"
+            >
+
+        </div>
+
+
+        <button
+            class="submit-button"
+            id="confirmWithdrawSavingsButton"
+            type="button"
+        >
+            Retirar da reserva
+        </button>
+
+    `);
+
+
+    document
+        .getElementById("confirmWithdrawSavingsButton")
+        .addEventListener("click", () => {
+
+            const amount = Number(
+                document.getElementById(
+                    "savingsWithdrawValue"
+                ).value
+            );
+
+
+            /*
+                Verifica se o valor digitado é válido.
+            */
+            if (!amount || amount <= 0) {
+
+                alert("Informe um valor válido.");
+
+                return;
+            }
+
+
+            /*
+                Não permite retirar mais dinheiro
+                do que existe na reserva.
+            */
+            if (amount > savings.balance) {
+
+                alert(
+                    `Você só possui ${formatMoney(
+                        savings.balance
+                    )} na reserva.`
+                );
+
+                return;
+            }
+
+
+            /*
+                Diminui o valor total guardado.
+            */
+            state.data.savings.balance -= amount;
+
+
+            /*
+                Garante que o histórico de retiradas
+                exista.
+            */
+            state.data.savings.withdrawnByMonth =
+                state.data.savings.withdrawnByMonth || {};
+
+
+            /*
+                Registra quanto foi retirado neste mês.
+            */
+            state.data.savings.withdrawnByMonth[
+                state.selectedMonth
+            ] =
+                getWithdrawnAmountForMonth(
+                    state.selectedMonth
+                ) + amount;
+
+
+            /*
+                Salva tudo.
+            */
+            saveData();
+
+            render();
+
+
+            /*
+                Atualiza o painel da reserva.
+            */
+            openSavingsPanel();
+
+        });
+}
+
+
+
+
 
 // Abre o formulário de uma meta nova ou de uma meta que já existe, para editar nome e valor.
 function openGoalForm(goalId = null) {
