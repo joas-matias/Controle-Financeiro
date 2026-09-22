@@ -341,107 +341,59 @@ function render() {
 
 /* ================================================================
    RESUMO FINANCEIRO DO MÊS
+
+   REGRAS:
+
+   RECEBIDO:
+       Mostra somente o dinheiro que realmente entrou.
+
+   SALDO DISPONÍVEL:
+       Recebido
+       - Gastos
+       - Dinheiro colocado no cofrinho
+       + Dinheiro retirado do cofrinho
+
+   IMPORTANTE:
+       O cofrinho NÃO altera o valor "Recebido".
+       Ele altera somente o "Saldo disponível".
    ================================================================ */
 
-/*
-    O resumo agora considera a reserva.
-
-    A lógica financeira é:
-
-        Recebido disponível
-        =
-        Recebido real
-        - Valor reservado
-        + Valor retirado da reserva
-
-    Depois:
-
-        Saldo do mês
-        =
-        Recebido disponível
-        - Gastos
-
-    ---------------------------------------------------------------
-
-    EXEMPLO:
-
-    Recebido:
-        R$ 3.000
-
-    Reservado:
-        R$ 1.000
-
-    Gastos:
-        R$ 500
-
-    Resultado:
-
-        Recebido disponível = 3.000 - 1.000
-        Recebido disponível = 2.000
-
-        Saldo = 2.000 - 500
-        Saldo = 1.500
-
-    ---------------------------------------------------------------
-
-    Se posteriormente você retirar R$ 300 da reserva:
-
-        Recebido disponível = 3.000 - 1.000 + 300
-        Recebido disponível = 2.300
-
-        Saldo = 2.300 - 500
-        Saldo = 1.800
-
-    Ao mesmo tempo, a reserva passa de:
-
-        R$ 1.000
-
-    para:
-
-        R$ 700
-*/
 function renderSummary() {
 
-    /*
-        Primeiro calculamos quanto realmente entrou
-        no mês através das receitas.
-    */
+    /* ============================================================
+       1. TOTAL REALMENTE RECEBIDO
+       ============================================================ */
+
     const totalIncomes = getCurrentMonthIncomes()
         .reduce(
-            (sum, income) => sum + Number(income.amount),
+            (sum, income) =>
+                sum + Number(income.amount),
             0
         );
 
-    /*
-        Quanto foi reservado utilizando o dinheiro
-        recebido neste mês?
-    */
+
+    /* ============================================================
+       2. VALOR QUE FOI COLOCADO NO COFRINHO
+       ============================================================ */
+
     const reserved = getReservedAmountForMonth(
         state.selectedMonth
     );
 
-    /*
-        Quanto foi retirado da reserva neste mês?
-    */
+
+    /* ============================================================
+       3. VALOR RETIRADO DO COFRINHO
+       ============================================================ */
+
     const withdrawn = getWithdrawnAmountForMonth(
         state.selectedMonth
     );
 
-    /*
-        Agora calculamos quanto realmente está
-        disponível para utilização.
 
-        Reserva diminui.
-        Retirada da reserva aumenta.
-    */
-    const availableIncome = Math.max(
-        totalIncomes - reserved + withdrawn,
-        0
-    );
+    /* ============================================================
+       4. TOTAL DE GASTOS
+       ============================================================ */
 
-    /*
-        Calculamos os gastos normalmente.
-    */
     const expenses = getCurrentMonthExpenses()
         .reduce(
             (sum, expense) =>
@@ -453,26 +405,46 @@ function renderSummary() {
             0
         );
 
-    /*
-        Finalmente calculamos o saldo disponível.
-    */
-    const balance = availableIncome - expenses;
 
-    /*
-        Atualiza o valor "Recebido" na interface.
-    */
+    /* ============================================================
+       5. SALDO DISPONÍVEL
+
+       Recebido
+       - Gastos
+       - Reserva
+       + Retiradas da reserva
+       ============================================================ */
+
+    const balance =
+        totalIncomes
+        - expenses
+        - reserved
+        + withdrawn;
+
+
+    /* ============================================================
+       6. ATUALIZA "RECEBIDO"
+
+       IMPORTANTE:
+       O cofrinho NÃO altera este valor.
+       ============================================================ */
+
     document.getElementById("incomeValue").textContent =
-        formatMoney(availableIncome);
+        formatMoney(totalIncomes);
 
-    /*
-        Atualiza o valor "Gasto".
-    */
+
+    /* ============================================================
+       7. ATUALIZA "GASTO"
+       ============================================================ */
+
     document.getElementById("expenseValue").textContent =
         formatMoney(expenses);
 
-    /*
-        Atualiza o "Saldo do mês".
-    */
+
+    /* ============================================================
+       8. ATUALIZA "SALDO DO MÊS"
+       ============================================================ */
+
     document.getElementById("balanceValue").textContent =
         formatMoney(balance);
 }
@@ -1168,61 +1140,128 @@ function openEditSavingsForm() {
     });
 }
 
-// Abre o formulário para somar um novo valor à reserva, com atalho para usar o recebido do mês.
 /* ================================================================
-   ADICIONAR DINHEIRO À RESERVA
+   ADICIONAR DINHEIRO AO COFRINHO
+
+   O valor máximo permitido é o SALDO DISPONÍVEL naquele momento.
+
+   Exemplo:
+
+   Recebido:       R$ 3.000
+   Gastos:         R$ 500
+   Cofrinho:       R$ 300
+   Retirado:       R$ 100
+
+   Saldo disponível:
+
+   3.000 - 500 - 300 + 100
+   = R$ 2.300
+
+   Portanto, o usuário pode colocar no máximo
+   R$ 2.300 no cofrinho.
    ================================================================ */
 
-/*
-    Abre o formulário para colocar dinheiro no cofrinho.
+function openAddSavingsForm() {
 
-    O usuário pode escolher:
+    /* ============================================================
+       1. CALCULA O RECEBIDO REAL
+       ============================================================ */
 
-        [ ] Diminuir do recebido total
+    const totalIncomes = getCurrentMonthIncomes()
+        .reduce(
+            (sum, income) =>
+                sum + Number(income.amount),
+            0
+        );
 
-    Se estiver marcado:
 
-        Recebido: R$ 3.000
-        Reserva:  R$ 1.000
+    /* ============================================================
+       2. CALCULA OS GASTOS DO MÊS
+       ============================================================ */
 
-        Recebido disponível:
-        R$ 2.000
+    const expenses = getCurrentMonthExpenses()
+        .reduce(
+            (sum, expense) =>
+                sum +
+                getExpenseAmountForMonth(
+                    expense,
+                    state.selectedMonth
+                ),
+            0
+        );
 
-    Se estiver desmarcado:
 
-        O dinheiro será simplesmente acrescentado
-        ao saldo total da reserva sem alterar o
-        recebido disponível daquele mês.
-*/
-// Abre o formulário para adicionar dinheiro à reserva.
-function openAddSavingsForm(monthIncome) {
+    /* ============================================================
+       3. PEGA QUANTO JÁ ESTÁ NO COFRINHO NESTE MÊS
+       ============================================================ */
 
-    // Descobre quanto já foi reservado neste mês.
-    const reservedThisMonth =
-        getReservedAmountForMonth(state.selectedMonth);
+    const reserved =
+        getReservedAmountForMonth(
+            state.selectedMonth
+        );
 
-    // Calcula quanto do recebido ainda está disponível para reservar.
-    const availableIncome =
-        Math.max(monthIncome - reservedThisMonth, 0);
 
+    /* ============================================================
+       4. PEGA QUANTO JÁ FOI RETIRADO DO COFRINHO NESTE MÊS
+       ============================================================ */
+
+    const withdrawn =
+        getWithdrawnAmountForMonth(
+            state.selectedMonth
+        );
+
+
+    /* ============================================================
+       5. CALCULA O SALDO DISPONÍVEL ATUAL
+       ============================================================ */
+
+    const availableBalance = Math.max(
+        totalIncomes
+        - expenses
+        - reserved
+        + withdrawn,
+        0
+    );
+
+
+    /* ============================================================
+       6. SE NÃO EXISTIR SALDO DISPONÍVEL
+
+       Não precisamos nem abrir o formulário.
+       ============================================================ */
+
+    if (availableBalance <= 0) {
+
+        alert(
+            "Você não possui saldo disponível para adicionar ao cofrinho."
+        );
+
+        return;
+    }
+
+
+    /* ============================================================
+       7. ABRE O FORMULÁRIO
+       ============================================================ */
 
     openModal("Adicionar à reserva", `
 
-        ${
-            availableIncome > 0
-                ? `
-                    <button
-                        class="secondary-button"
-                        id="useIncomeButton"
-                        type="button"
-                    >
-                        Usar recebido disponível:
-                        ${formatMoney(availableIncome)}
-                    </button>
-                `
-                : ""
-        }
+        <p class="form-help">
+            Seu saldo disponível neste momento é
+            <strong>${formatMoney(availableBalance)}</strong>.
+        </p>
 
+        <div class="savings-total">
+
+            <span>
+                Máximo disponível
+            </span>
+
+            <strong>
+                ${formatMoney(availableBalance)}
+            </strong>
+
+        </div>
 
         <div class="form-group">
 
@@ -1234,6 +1273,7 @@ function openAddSavingsForm(monthIncome) {
                 id="savingsAddValue"
                 type="number"
                 min="0.01"
+                max="${availableBalance}"
                 step="0.01"
                 required
                 placeholder="0,00"
@@ -1241,69 +1281,46 @@ function openAddSavingsForm(monthIncome) {
 
         </div>
 
-
-        <div class="toggle-line">
-
-            <label for="deductFromIncome">
-                Diminuir do recebido total
-            </label>
-
-            <label class="switch">
-
-                <input
-                    id="deductFromIncome"
-                    type="checkbox"
-                >
-
-                <span class="slider"></span>
-
-            </label>
-
-        </div>
-
-
-        <p class="form-help">
-            Marque esta opção se o dinheiro reservado saiu
-            do valor que você recebeu neste mês.
-        </p>
-
+        <button
+            class="secondary-button"
+            id="useBalanceButton"
+            type="button"
+        >
+            Usar saldo disponível
+        </button>
 
         <button
             class="submit-button"
             id="confirmAddSavingsButton"
             type="button"
         >
-            Adicionar
+            Adicionar ao cofrinho
         </button>
 
     `);
 
 
-    /*
-        Botão para preencher automaticamente o valor
-        disponível no mês.
-    */
-    if (availableIncome > 0) {
+    /* ============================================================
+       8. BOTÃO "USAR SALDO DISPONÍVEL"
 
-        document
-            .getElementById("useIncomeButton")
-            .addEventListener("click", () => {
+       Preenche automaticamente o valor máximo.
+       ============================================================ */
 
-                document.getElementById(
-                    "savingsAddValue"
-                ).value = availableIncome.toFixed(2);
+    document
+        .getElementById("useBalanceButton")
+        .addEventListener("click", () => {
 
-                document.getElementById(
-                    "deductFromIncome"
-                ).checked = true;
+            document.getElementById(
+                "savingsAddValue"
+            ).value = availableBalance.toFixed(2);
 
-            });
-    }
+        });
 
 
-    /*
-        Botão "Adicionar".
-    */
+    /* ============================================================
+       9. CONFIRMAR ADIÇÃO
+       ============================================================ */
+
     document
         .getElementById("confirmAddSavingsButton")
         .addEventListener("click", () => {
@@ -1314,100 +1331,158 @@ function openAddSavingsForm(monthIncome) {
                 ).value
             );
 
-            const deductFromIncome =
-                document.getElementById(
-                    "deductFromIncome"
-                ).checked;
 
+            /* ====================================================
+               VALIDAÇÃO DO VALOR
+               ==================================================== */
 
-            /*
-                Verifica se o valor é válido.
-            */
             if (!amount || amount <= 0) {
 
-                alert("Informe um valor válido.");
-
-                return;
-            }
-
-
-            /*
-                Não permite reservar mais dinheiro
-                do que o recebido disponível.
-            */
-            if (
-                deductFromIncome &&
-                amount > availableIncome
-            ) {
-
                 alert(
-                    `Você só possui ${formatMoney(
-                        availableIncome
-                    )} de recebido disponível para reservar neste mês.`
+                    "Informe um valor válido."
                 );
 
                 return;
             }
 
 
-            /*
-                Adiciona o dinheiro à reserva geral.
-            */
-            state.data.savings.balance += amount;
+            /* ====================================================
+               NÃO PERMITE COLOCAR MAIS DO QUE O SALDO DISPONÍVEL
+               ==================================================== */
 
+            if (amount > availableBalance) {
 
-            /*
-                Se o usuário marcou a opção,
-                registramos que esse dinheiro saiu
-                do recebido deste mês.
-            */
-            if (deductFromIncome) {
+                alert(
+                    `Você não possui saldo suficiente.
 
-                state.data.savings.reservedByMonth =
-                    state.data.savings.reservedByMonth || {};
+Saldo disponível:
+${formatMoney(availableBalance)}
 
+Valor informado:
+${formatMoney(amount)}`
+                );
 
-                state.data.savings.reservedByMonth[
-                    state.selectedMonth
-                ] =
-                    getReservedAmountForMonth(
-                        state.selectedMonth
-                    ) + amount;
+                return;
             }
 
 
-            /*
-                Salva os dados.
-            */
+            /* ====================================================
+               GARANTE QUE OS OBJETOS EXISTAM
+               ==================================================== */
+
+            state.data.savings.reservedByMonth =
+                state.data.savings.reservedByMonth || {};
+
+
+            state.data.savings.withdrawnByMonth =
+                state.data.savings.withdrawnByMonth || {};
+
+
+            /* ====================================================
+               ADICIONA O DINHEIRO À RESERVA
+
+               O saldo total do cofrinho aumenta.
+               ==================================================== */
+
+            state.data.savings.balance += amount;
+
+
+            /* ====================================================
+               REGISTRA QUANTO FOI RESERVADO NESTE MÊS
+
+               Esse valor será descontado do saldo disponível.
+               ==================================================== */
+
+            state.data.savings.reservedByMonth[
+                state.selectedMonth
+            ] =
+                getReservedAmountForMonth(
+                    state.selectedMonth
+                ) + amount;
+
+
+            /* ====================================================
+               SALVA OS DADOS
+               ==================================================== */
+
             saveData();
 
 
-            /*
-                Atualiza novamente o painel da reserva.
-            */
+            /* ====================================================
+               ATUALIZA TODO O APLICATIVO IMEDIATAMENTE
+
+               Isso resolve o bug de precisar clicar em
+               "Início" novamente.
+               ==================================================== */
+
+            render();
+
+
+            /* ====================================================
+               REABRE O PAINEL DO COFRINHO
+
+               Assim o usuário continua vendo o cofrinho
+               atualizado.
+               ==================================================== */
+
             openSavingsPanel();
 
         });
 }
 
 /* ================================================================
-   RETIRAR DINHEIRO DA RESERVA
+   RETIRAR DINHEIRO DO COFRINHO
+
+   Quando o usuário retira dinheiro:
+
+       COFRINHO diminui
+       SALDO DISPONÍVEL aumenta
+       RECEBIDO permanece igual
+
+   Exemplo:
+
+       Recebido: R$ 3.000
+       Gastos:   R$ 500
+       Cofrinho: R$ 1.000
+
+       Saldo = R$ 1.500
+
+   Retirando R$ 300:
+
+       Cofrinho = R$ 700
+       Saldo    = R$ 1.800
+       Recebido = R$ 3.000
    ================================================================ */
 
 function openWithdrawSavingsForm() {
 
-    // Recupera a reserva atual.
     const savings = getSavings();
 
+
+    /* ============================================================
+       NÃO PERMITE RETIRAR SE O COFRINHO ESTIVER VAZIO
+       ============================================================ */
+
+    if (savings.balance <= 0) {
+
+        alert(
+            "Não há dinheiro disponível no cofrinho para retirar."
+        );
+
+        return;
+    }
+
+
+    /* ============================================================
+       ABRE O FORMULÁRIO
+       ============================================================ */
 
     openModal("Retirar da reserva", `
 
         <p class="form-help">
-            Retire um valor da sua reserva quando precisar utilizar
-            o dinheiro guardado. O valor retirado ficará novamente
-            disponível no saldo do mês.
+            O valor retirado ficará novamente disponível
+            no saldo do mês.
         </p>
-
 
         <div class="savings-total">
 
@@ -1420,7 +1495,6 @@ function openWithdrawSavingsForm() {
             </strong>
 
         </div>
-
 
         <div class="form-group">
 
@@ -1440,7 +1514,6 @@ function openWithdrawSavingsForm() {
 
         </div>
 
-
         <button
             class="submit-button"
             id="confirmWithdrawSavingsButton"
@@ -1451,6 +1524,10 @@ function openWithdrawSavingsForm() {
 
     `);
 
+
+    /* ============================================================
+       CONFIRMAR RETIRADA
+       ============================================================ */
 
     document
         .getElementById("confirmWithdrawSavingsButton")
@@ -1463,50 +1540,57 @@ function openWithdrawSavingsForm() {
             );
 
 
-            /*
-                Verifica se o valor digitado é válido.
-            */
+            /* ====================================================
+               VALIDAÇÃO
+               ==================================================== */
+
             if (!amount || amount <= 0) {
 
-                alert("Informe um valor válido.");
-
-                return;
-            }
-
-
-            /*
-                Não permite retirar mais dinheiro
-                do que existe na reserva.
-            */
-            if (amount > savings.balance) {
-
                 alert(
-                    `Você só possui ${formatMoney(
-                        savings.balance
-                    )} na reserva.`
+                    "Informe um valor válido."
                 );
 
                 return;
             }
 
 
-            /*
-                Diminui o valor total guardado.
-            */
+            /* ====================================================
+               NÃO PERMITE RETIRAR MAIS DO QUE EXISTE
+               ==================================================== */
+
+            if (amount > savings.balance) {
+
+                alert(
+                    `Você só possui ${formatMoney(
+                        savings.balance
+                    )} no cofrinho.`
+                );
+
+                return;
+            }
+
+
+            /* ====================================================
+               DIMINUI O SALDO TOTAL DO COFRINHO
+               ==================================================== */
+
             state.data.savings.balance -= amount;
 
 
-            /*
-                Garante que o histórico de retiradas
-                exista.
-            */
+            /* ====================================================
+               GARANTE QUE O CONTROLE POR MÊS EXISTA
+               ==================================================== */
+
             state.data.savings.withdrawnByMonth =
                 state.data.savings.withdrawnByMonth || {};
 
 
-            /*
-                Registra quanto foi retirado neste mês.
-            */
+            /* ====================================================
+               REGISTRA QUANTO FOI RETIRADO NESTE MÊS
+
+               Esse valor será devolvido ao saldo disponível.
+               ==================================================== */
+
             state.data.savings.withdrawnByMonth[
                 state.selectedMonth
             ] =
@@ -1515,17 +1599,29 @@ function openWithdrawSavingsForm() {
                 ) + amount;
 
 
-            /*
-                Salva tudo.
-            */
+            /* ====================================================
+               SALVA
+               ==================================================== */
+
             saveData();
+
+
+            /* ====================================================
+               ATUALIZA IMEDIATAMENTE:
+
+               - Recebido
+               - Gastos
+               - Saldo
+               - Tela atual
+               ==================================================== */
 
             render();
 
 
-            /*
-                Atualiza o painel da reserva.
-            */
+            /* ====================================================
+               REABRE O COFRINHO JÁ ATUALIZADO
+               ==================================================== */
+
             openSavingsPanel();
 
         });
