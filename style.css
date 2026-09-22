@@ -137,11 +137,35 @@ h1 {
    ================================================================ */
 
 .summary-card {
+    position: relative;
     overflow: hidden;
     border-radius: 22px;
     background: linear-gradient(135deg, #5c57e9, #3430a9);
     color: white;
     box-shadow: 0 14px 28px rgba(70, 65, 199, 0.27);
+}
+
+/* BOTÃO DO COFRINHO NO CANTO SUPERIOR DIREITO DO CARTÃO AZUL */
+
+.piggy-button {
+    position: absolute;
+    z-index: 1;
+    top: 16px;
+    right: 16px;
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.18);
+    font-size: 1.2rem;
+    line-height: 1;
+}
+
+.piggy-button:hover,
+.piggy-button:focus-visible {
+    background: rgba(255, 255, 255, 0.28);
+    outline: none;
 }
 
 /* NO TEMA ESCURO, O RESUMO USA UM GRADIENTE DE GRAFITE E DOURADO */
@@ -691,6 +715,136 @@ body.dark-theme .small-action {
 body.dark-theme .small-action.danger {
     background: #422629;
     color: #ff9c98;
+}
+
+/* ================================================================
+   RESERVA (COFRINHO) E METAS DE COMPRA
+   ================================================================ */
+
+/* CARTÃO QUE MOSTRA O VALOR TOTAL GUARDADO NA RESERVA */
+
+.savings-total {
+    padding: 18px;
+    margin-bottom: 14px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #5c57e9, #3430a9);
+    color: white;
+    text-align: center;
+}
+
+body.dark-theme .savings-total {
+    background: linear-gradient(135deg, #292a20, #7e5b12);
+}
+
+.savings-total span {
+    display: block;
+    opacity: 0.8;
+    font-size: 0.78rem;
+}
+
+.savings-total strong {
+    display: block;
+    margin-top: 4px;
+    font-size: 1.7rem;
+    letter-spacing: -0.05em;
+}
+
+.savings-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 6px;
+}
+
+/* LISTA DE METAS COM BARRA DE PROGRESSO */
+
+.goals-list {
+    overflow: hidden;
+    margin-bottom: 14px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+}
+
+.goal-row {
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.goal-row:last-child {
+    border-bottom: 0;
+}
+
+.goal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.goal-header strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.88rem;
+}
+
+.goal-row-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+}
+
+/* TRILHA E PREENCHIMENTO DA BARRA QUE MOSTRA O QUANTO FALTA PARA A META */
+
+.goal-progress-bar {
+    overflow: hidden;
+    height: 10px;
+    border-radius: 20px;
+    background: var(--line);
+}
+
+.goal-progress-fill {
+    height: 100%;
+    border-radius: 20px;
+    background: var(--primary);
+    transition: width 0.25s ease;
+}
+
+.goal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 9px;
+}
+
+.goal-footer small {
+    color: var(--muted);
+    font-size: 0.76rem;
+}
+
+/* BOTÃO SECUNDÁRIO NA COR DE ALERTA, USADO PARA EXCLUIR UMA META */
+
+.secondary-button.danger-text {
+    color: #d94852;
+}
+
+body.dark-theme .secondary-button.danger-text {
+    color: #ff9c98;
+}
+
+/* ================================================================
+   FILTRO DE CATEGORIAS NA TELA DE DESPESAS
+   ================================================================ */
+
+.filters-bar {
+    margin-bottom: 12px;
+}
+
+.filters-bar .form-group {
+    margin-bottom: 0;
 }
 
 @media (min-width: 700px) {

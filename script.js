@@ -22,6 +22,7 @@ const defaultCategories = {
 const state = {
     screen: "home",
     expenseView: "all",
+    expenseCategoryFilter: "",
     selectedMonth: new Date().toISOString().slice(0, 7),
     data: loadData()
 };
@@ -41,7 +42,9 @@ function loadData() {
         cards: [],
         expenses: [],
         incomes: [],
-        categories: createDefaultCategories()
+        categories: createDefaultCategories(),
+        savings: createDefaultSavings(),
+        goals: []
     };
 }
 
@@ -57,8 +60,20 @@ function normalizeData(data) {
         cards: Array.isArray(data.cards) ? data.cards : [],
         expenses: Array.isArray(data.expenses) ? data.expenses : [],
         incomes: Array.isArray(data.incomes) ? data.incomes : [],
-        categories: savedCategories
+        categories: savedCategories,
+        // RESERVA E METAS: BACKUPS ANTIGOS AINDA NÃO TINHAM ESSAS INFORMAÇÕES
+        savings: data.savings && typeof data.savings === "object" ? { balance: Number(data.savings.balance) || 0 } : createDefaultSavings(),
+        goals: Array.isArray(data.goals) ? data.goals.map(goal => ({
+            id: goal.id,
+            name: goal.name,
+            target: Number(goal.target) || 0,
+            saved: Number(goal.saved) || 0
+        })) : []
     };
+}
+
+function createDefaultSavings() {
+    return { balance: 0 };
 }
 
 function createDefaultCategories() {
@@ -67,6 +82,11 @@ function createDefaultCategories() {
 
 function getCategories() {
     return state.data.categories;
+}
+
+// Atalho para acessar a reserva guardada (valor total do cofrinho).
+function getSavings() {
+    return state.data.savings;
 }
 
 function saveData() {
@@ -277,12 +297,19 @@ function renderCategoryTotals(expenses) {
 function renderExpenses() {
     const expenses = getCurrentMonthExpenses();
     const incomes = getCurrentMonthIncomes();
+    const categoryFilter = state.expenseCategoryFilter;
+
+    // QUANDO UMA CATEGORIA ESTÁ SELECIONADA, SÓ AS DESPESAS DAQUELA CATEGORIA APARECEM
+    const filteredExpenses = categoryFilter ? expenses.filter(expense => expense.category === categoryFilter) : expenses;
+
     const allTransactions = [
-        ...expenses.map(item => ({ ...item, kind: "expense" })),
-        ...incomes.map(item => ({ ...item, kind: "income" }))
+        ...filteredExpenses.map(item => ({ ...item, kind: "expense" })),
+        // RECEITAS NÃO TÊM CATEGORIA, ENTÃO SOMEM DA LISTA QUANDO UM FILTRO ESTÁ ATIVO
+        ...(categoryFilter ? [] : incomes.map(item => ({ ...item, kind: "income" })))
     ].sort((a, b) => b.date.localeCompare(a.date));
 
     const isPaymentView = state.expenseView === "payments";
+    const emptyMessage = categoryFilter ? "Nenhuma despesa nesta categoria neste mês." : "Escolha outro mês ou adicione um lançamento.";
 
     return `
         <div class="section-head">
@@ -296,12 +323,28 @@ function renderExpenses() {
             <button class="status-tab ${isPaymentView ? "active" : ""}" data-expense-view="payments" type="button">A pagar</button>
         </div>
 
+        <!-- FILTRO PARA VER APENAS OS GASTOS DE UMA CATEGORIA ESPECÍFICA NO MÊS -->
+        <div class="filters-bar form-group">
+            <label for="expenseCategoryFilter">Filtrar por categoria</label>
+            <select id="expenseCategoryFilter">
+                <option value="">Todas as categorias</option>
+                ${renderCategoryFilterOptions(categoryFilter)}
+            </select>
+        </div>
+
         <div class="list-card">
             ${isPaymentView
-                ? (expenses.length ? expenses.map(renderPaymentRow).join("") : renderEmpty("Não há despesas para pagar neste mês."))
-                : (allTransactions.length ? allTransactions.map(item => renderTransaction(item, item.kind, true)).join("") : renderEmpty("Escolha outro mês ou adicione um lançamento."))}
+                ? (filteredExpenses.length ? filteredExpenses.map(renderPaymentRow).join("") : renderEmpty(categoryFilter ? "Nenhuma despesa desta categoria para pagar neste mês." : "Não há despesas para pagar neste mês."))
+                : (allTransactions.length ? allTransactions.map(item => renderTransaction(item, item.kind, true)).join("") : renderEmpty(emptyMessage))}
         </div>
     `;
+}
+
+// Monta as opções do seletor de categorias, marcando a que está selecionada no momento.
+function renderCategoryFilterOptions(selectedCategory) {
+    return Object.entries(getCategories()).map(([key, category]) => `
+        <option value="${key}" ${selectedCategory === key ? "selected" : ""}>${category.icon} ${category.name}</option>
+    `).join("");
 }
 
 /* ================================================================
@@ -488,6 +531,12 @@ function bindScreenEvents() {
     document.querySelectorAll("[data-payment-id]").forEach(button => {
         button.addEventListener("click", () => toggleExpensePaid(button.dataset.paymentId));
     });
+
+    // O SELETOR DE CATEGORIA SÓ EXISTE NA TELA DE DESPESAS, POR ISSO O "?"
+    document.getElementById("expenseCategoryFilter")?.addEventListener("change", event => {
+        state.expenseCategoryFilter = event.target.value;
+        render();
+    });
 }
 
 function handleAction(action, cardId) {
@@ -623,6 +672,200 @@ function openIncomeForm() {
         saveData();
         closeModal();
         render();
+    });
+}
+
+/* ================================================================
+   RESERVA (COFRINHO) E METAS DE COMPRA
+   A reserva guarda o valor total juntado; as metas são "cofrinhos"
+   separados com um objetivo de valor e uma barra de progresso.
+   ================================================================ */
+
+function openSavingsPanel() {
+    const savings = getSavings();
+    const goals = state.data.goals;
+    const monthIncome = getCurrentMonthIncomes().reduce((sum, income) => sum + Number(income.amount), 0);
+
+    openModal("Minha reserva", `
+        <!-- VALOR TOTAL GUARDADO, PODE SER EDITADO QUANDO RENDER NO BANCO -->
+        <div class="savings-total">
+            <span>Total guardado</span>
+            <strong>${formatMoney(savings.balance)}</strong>
+        </div>
+
+        <div class="savings-actions">
+            <button class="secondary-button" id="editSavingsButton" type="button">Editar valor</button>
+            <button class="submit-button" id="addSavingsButton" type="button">Adicionar valor</button>
+        </div>
+
+        <div class="section-head"><h2>Minhas metas</h2></div>
+
+        <div class="goals-list" id="goalsList">
+            ${goals.length ? goals.map(renderGoalRow).join("") : renderEmpty("Crie uma meta para acompanhar o progresso de uma compra, como trocar de moto.")}
+        </div>
+
+        <button class="secondary-button" id="newGoalButton" type="button">+ Nova meta</button>
+    `);
+
+    document.getElementById("editSavingsButton").addEventListener("click", () => openEditSavingsForm());
+    document.getElementById("addSavingsButton").addEventListener("click", () => openAddSavingsForm(monthIncome));
+    document.getElementById("newGoalButton").addEventListener("click", () => openGoalForm());
+
+    bindGoalEvents();
+}
+
+// Liga os botões de cada meta (adicionar valor, editar e remover).
+function bindGoalEvents() {
+    document.querySelectorAll("[data-goal-add]").forEach(button => {
+        button.addEventListener("click", () => openAddGoalAmountForm(button.dataset.goalAdd));
+    });
+
+    document.querySelectorAll("[data-goal-edit]").forEach(button => {
+        button.addEventListener("click", () => openGoalForm(button.dataset.goalEdit));
+    });
+
+    document.querySelectorAll("[data-goal-delete]").forEach(button => {
+        button.addEventListener("click", () => deleteGoal(button.dataset.goalDelete));
+    });
+}
+
+// Monta o cartão de cada meta, com a barra que preenche conforme o valor guardado.
+function renderGoalRow(goal) {
+    const percent = goal.target > 0 ? Math.min((goal.saved / goal.target) * 100, 100) : 0;
+
+    return `
+        <div class="goal-row">
+            <div class="goal-header">
+                <strong>${escapeHtml(goal.name)}</strong>
+                <div class="goal-row-actions">
+                    <button class="small-action" data-goal-edit="${goal.id}" type="button">Editar</button>
+                    <button class="small-action danger" data-goal-delete="${goal.id}" type="button">Remover</button>
+                </div>
+            </div>
+
+            <div class="goal-progress-bar"><div class="goal-progress-fill" style="width:${percent}%"></div></div>
+
+            <div class="goal-footer">
+                <small>${formatMoney(goal.saved)} de ${formatMoney(goal.target)}</small>
+                <button class="text-button" data-goal-add="${goal.id}" type="button">+ Adicionar valor</button>
+            </div>
+        </div>
+    `;
+}
+
+// Abre o formulário para trocar o valor total da reserva (ex.: depois de um rendimento).
+function openEditSavingsForm() {
+    const savings = getSavings();
+
+    openModal("Editar valor da reserva", `
+        <p class="form-help">Use esta opção quando o dinheiro guardado render no banco ou precisar de algum ajuste.</p>
+        <div class="form-group"><label for="savingsNewValue">Novo valor total (R$)</label><input id="savingsNewValue" type="number" min="0" step="0.01" required value="${savings.balance}"></div>
+        <button class="submit-button" id="saveSavingsValueButton" type="button">Salvar valor</button>
+    `);
+
+    document.getElementById("saveSavingsValueButton").addEventListener("click", () => {
+        state.data.savings.balance = Number(document.getElementById("savingsNewValue").value);
+        saveData();
+        openSavingsPanel();
+    });
+}
+
+// Abre o formulário para somar um novo valor à reserva, com atalho para usar o recebido do mês.
+function openAddSavingsForm(monthIncome) {
+    openModal("Adicionar à reserva", `
+        ${monthIncome > 0 ? `<button class="secondary-button" id="useIncomeButton" type="button">Usar recebido do mês: ${formatMoney(monthIncome)}</button>` : ""}
+        <div class="form-group"><label for="savingsAddValue">Valor a adicionar (R$)</label><input id="savingsAddValue" type="number" min="0.01" step="0.01" required placeholder="0,00"></div>
+        <button class="submit-button" id="confirmAddSavingsButton" type="button">Adicionar</button>
+    `);
+
+    if (monthIncome > 0) {
+        document.getElementById("useIncomeButton").addEventListener("click", () => {
+            document.getElementById("savingsAddValue").value = monthIncome;
+        });
+    }
+
+    document.getElementById("confirmAddSavingsButton").addEventListener("click", () => {
+        const amount = Number(document.getElementById("savingsAddValue").value);
+
+        if (!amount || amount <= 0) {
+            alert("Informe um valor válido.");
+            return;
+        }
+
+        state.data.savings.balance += amount;
+        saveData();
+        openSavingsPanel();
+    });
+}
+
+// Abre o formulário de uma meta nova ou de uma meta que já existe, para editar nome e valor.
+function openGoalForm(goalId = null) {
+    const goal = goalId ? state.data.goals.find(item => item.id === goalId) : null;
+
+    openModal(goal ? "Editar meta" : "Nova meta", `
+        <form id="goalForm">
+            <div class="form-group"><label for="goalName">Nome da meta</label><input id="goalName" required maxlength="40" value="${goal ? escapeHtml(goal.name) : ""}" placeholder="Ex.: Trocar de moto"></div>
+            <div class="form-group"><label for="goalTarget">Valor da meta (R$)</label><input id="goalTarget" type="number" min="0.01" step="0.01" required value="${goal ? goal.target : ""}" placeholder="Ex.: 20000,00"></div>
+            ${goal ? `<div class="form-group"><label for="goalSaved">Valor já guardado (R$)</label><input id="goalSaved" type="number" min="0" step="0.01" value="${goal.saved}"></div>` : ""}
+            <button class="submit-button" type="submit">${goal ? "Salvar meta" : "Criar meta"}</button>
+            ${goal ? `<button class="secondary-button danger-text" id="deleteGoalButton" type="button">Excluir meta</button>` : ""}
+        </form>
+    `);
+
+    document.getElementById("goalForm").addEventListener("submit", event => saveGoal(event, goalId));
+
+    if (goal) document.getElementById("deleteGoalButton").addEventListener("click", () => deleteGoal(goal.id));
+}
+
+function saveGoal(event, goalId) {
+    event.preventDefault();
+
+    const name = document.getElementById("goalName").value.trim();
+    const target = Number(document.getElementById("goalTarget").value);
+
+    if (goalId) {
+        const goal = state.data.goals.find(item => item.id === goalId);
+        goal.name = name;
+        goal.target = target;
+        goal.saved = Number(document.getElementById("goalSaved").value);
+    } else {
+        state.data.goals.push({ id: createId(), name, target, saved: 0 });
+    }
+
+    saveData();
+    openSavingsPanel();
+}
+
+function deleteGoal(goalId) {
+    if (!confirm("Excluir esta meta? O progresso guardado nela será perdido.")) return;
+
+    state.data.goals = state.data.goals.filter(goal => goal.id !== goalId);
+    saveData();
+    openSavingsPanel();
+}
+
+// Abre um formulário rápido para somar valor ao progresso de uma meta específica.
+function openAddGoalAmountForm(goalId) {
+    const goal = state.data.goals.find(item => item.id === goalId);
+
+    if (!goal) return;
+
+    openModal(`Adicionar valor: ${escapeHtml(goal.name)}`, `
+        <div class="form-group"><label for="goalAddValue">Valor a adicionar (R$)</label><input id="goalAddValue" type="number" min="0.01" step="0.01" required placeholder="0,00"></div>
+        <button class="submit-button" id="confirmGoalAddButton" type="button">Adicionar</button>
+    `);
+
+    document.getElementById("confirmGoalAddButton").addEventListener("click", () => {
+        const amount = Number(document.getElementById("goalAddValue").value);
+
+        if (!amount || amount <= 0) {
+            alert("Informe um valor válido.");
+            return;
+        }
+
+        goal.saved += amount;
+        saveData();
+        openSavingsPanel();
     });
 }
 
@@ -867,8 +1110,8 @@ function isValidBackup(data) {
 }
 
 function clearData() {
-    if (!confirm("Tem certeza? Todos os cartões, despesas e receitas serão apagados.")) return;
-    state.data = { cards: [], expenses: [], incomes: [], categories: createDefaultCategories() };
+    if (!confirm("Tem certeza? Todos os cartões, despesas, receitas, a reserva e as metas serão apagados.")) return;
+    state.data = { cards: [], expenses: [], incomes: [], categories: createDefaultCategories(), savings: createDefaultSavings(), goals: [] };
     saveData();
     render();
 }
@@ -908,6 +1151,7 @@ function darkenColor(hex, percent) {
 document.getElementById("quickAddButton").addEventListener("click", openQuickAdd);
 document.getElementById("closeModalButton").addEventListener("click", closeModal);
 document.getElementById("themeButton").addEventListener("click", toggleTheme);
+document.getElementById("piggyButton").addEventListener("click", openSavingsPanel);
 document.getElementById("modalBackdrop").addEventListener("click", event => {
     if (event.target.id === "modalBackdrop") closeModal();
 });
