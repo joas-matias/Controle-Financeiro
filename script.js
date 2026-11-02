@@ -68,7 +68,8 @@ function normalizeData(data) {
         expensePresets: Array.isArray(data.expensePresets) ? data.expensePresets.map(preset => ({
             id: preset.id || createId(),
             name: String(preset.name || ""),
-            amount: Number(preset.amount) || 0
+            amount: Number(preset.amount) || 0,
+            category: savedCategories[preset.category] ? preset.category : "outros"
         })) : [],
         categories: orderedCategories,
         // RESERVA E METAS: BACKUPS ANTIGOS AINDA NÃO TINHAM ESSAS INFORMAÇÕES
@@ -908,6 +909,7 @@ function openExpenseForm() {
         if (!preset) return;
         document.getElementById("expenseDescription").value = preset.name;
         document.getElementById("expenseAmount").value = preset.amount;
+        document.getElementById("expenseCategory").value = preset.category;
     });
     document.getElementById("expenseForm").addEventListener("submit", saveExpense);
 }
@@ -1784,7 +1786,7 @@ function openCategoryManager() {
         <div class="category-manager-row">
             <span class="category-icon">${escapeHtml(category.icon)}</span>
             <strong>${escapeHtml(category.name)}</strong>
-            ${id !== "outros" ? `<button class="small-action" data-edit-category="${id}" type="button">Editar</button><button class="small-action danger" data-remove-category="${id}" type="button">Remover</button>` : `<span class="fixed-category-label">Fixa</span>`}
+            ${id === "outros" ? `<button class="small-action" data-edit-category="${id}" type="button">Editar nome</button><span class="fixed-category-label">Fixa · última</span>` : `<button class="small-action" data-edit-category="${id}" type="button">Editar</button><button class="small-action danger" data-remove-category="${id}" type="button">Remover</button>`}
         </div>
     `).join("");
 
@@ -1807,7 +1809,7 @@ function openExpensePresetManager() {
     const rows = state.data.expensePresets.map(preset => `
         <div class="category-manager-row">
             <span class="category-icon">＄</span>
-            <strong>${escapeHtml(preset.name)} · ${formatMoney(preset.amount)}</strong>
+            <strong>${escapeHtml(preset.name)} · ${formatMoney(preset.amount)} · ${escapeHtml(getCategories()[preset.category]?.name || getCategories().outros.name)}</strong>
             <button class="small-action" data-edit-expense-preset="${preset.id}" type="button">Editar</button>
             <button class="small-action danger" data-remove-expense-preset="${preset.id}" type="button">Excluir</button>
         </div>
@@ -1830,10 +1832,12 @@ function openExpensePresetManager() {
 
 function openExpensePresetForm(presetId = null) {
     const preset = state.data.expensePresets.find(item => item.id === presetId);
+    const categoryOptions = getOrderedCategoryEntries().map(([id, category]) => `<option value="${id}" ${preset?.category === id ? "selected" : ""}>${escapeHtml(category.icon)} ${escapeHtml(category.name)}</option>`).join("");
     openModal(preset ? "Editar valor pré-cadastrado" : "Cadastrar valor pré-cadastrado", `
         <form id="expensePresetForm">
             <div class="form-group"><label for="presetName">Nome da despesa</label><input id="presetName" required maxlength="60" value="${preset ? escapeHtml(preset.name) : ""}" placeholder="Ex.: Passagem"></div>
             <div class="form-group"><label for="presetAmount">Valor (R$)</label><input id="presetAmount" type="number" min="0.01" step="0.01" required value="${preset ? preset.amount : ""}" placeholder="0,00"></div>
+            <div class="form-group"><label for="presetCategory">Categoria</label><select id="presetCategory" required>${categoryOptions}</select></div>
             <button class="submit-button" type="submit">${preset ? "Salvar alterações" : "Salvar valor"}</button>
         </form>
     `);
@@ -1842,7 +1846,8 @@ function openExpensePresetForm(presetId = null) {
         const saved = {
             id: preset?.id || createId(),
             name: document.getElementById("presetName").value.trim(),
-            amount: Number(document.getElementById("presetAmount").value)
+            amount: Number(document.getElementById("presetAmount").value),
+            category: document.getElementById("presetCategory").value
         };
         if (preset) state.data.expensePresets = state.data.expensePresets.map(item => item.id === preset.id ? saved : item);
         else state.data.expensePresets.push(saved);
@@ -1861,12 +1866,14 @@ function removeExpensePreset(presetId) {
 
 // Abre o formulário para uma categoria nova ou uma categoria que será alterada.
 function openCategoryForm(categoryId = null) {
-    if (categoryId === "outros") return;
     const category = categoryId ? getCategories()[categoryId] : null;
+    const isFixedCategory = categoryId === "outros";
 
     openModal(category ? "Editar categoria" : "Adicionar categoria", `
         <form id="categoryForm">
-            <div class="form-row"><div class="form-group"><label for="categoryIcon">Ícone</label><input id="categoryIcon" required maxlength="4" value="${category ? escapeHtml(category.icon) : "🏷️"}" placeholder="Ex.: 🚌"></div><div class="form-group"><label for="categoryName">Nome da categoria</label><input id="categoryName" required maxlength="28" value="${category ? escapeHtml(category.name) : ""}" placeholder="Ex.: Estudos"></div></div>
+            ${isFixedCategory
+                ? `<div class="form-row"><div class="form-group"><label for="categoryIcon">Ícone</label><input id="categoryIcon" required maxlength="4" value="${escapeHtml(category.icon)}" placeholder="Ex.: 🧾"></div><div class="form-group"><label for="categoryName">Nome da categoria fixa</label><input id="categoryName" required maxlength="28" value="${escapeHtml(category.name)}" placeholder="Ex.: Despesas Diversas"></div></div><p class="form-help">Essa categoria continuará sempre no fim da lista e não poderá ser removida.</p>`
+                : `<div class="form-row"><div class="form-group"><label for="categoryIcon">Ícone</label><input id="categoryIcon" required maxlength="4" value="${category ? escapeHtml(category.icon) : "🏷️"}" placeholder="Ex.: 🚌"></div><div class="form-group"><label for="categoryName">Nome da categoria</label><input id="categoryName" required maxlength="28" value="${category ? escapeHtml(category.name) : ""}" placeholder="Ex.: Estudos"></div></div>`}
             <button class="submit-button" type="submit">${category ? "Salvar categoria" : "Adicionar categoria"}</button>
         </form>
     `);
@@ -1877,10 +1884,14 @@ function openCategoryForm(categoryId = null) {
 function saveCategory(event, categoryId) {
     event.preventDefault();
     const name = document.getElementById("categoryName").value.trim();
-    const icon = document.getElementById("categoryIcon").value.trim();
+    const icon = document.getElementById("categoryIcon")?.value.trim() || "";
 
     if (categoryId) {
-        state.data.categories[categoryId] = { name, icon };
+        if (categoryId === "outros") {
+            state.data.categories.outros = { name, icon };
+        } else {
+            state.data.categories[categoryId] = { name, icon };
+        }
     } else {
         const newId = createCategoryId(name);
         const entries = Object.entries(state.data.categories).filter(([id]) => id !== "outros");
@@ -1917,6 +1928,9 @@ function removeCategory(categoryId) {
 
     state.data.expenses.forEach(expense => {
         if (expense.category === categoryId) expense.category = "outros";
+    });
+    state.data.expensePresets.forEach(preset => {
+        if (preset.category === categoryId) preset.category = "outros";
     });
     delete state.data.categories[categoryId];
     saveData();
