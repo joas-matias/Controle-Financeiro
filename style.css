@@ -401,6 +401,18 @@ body.dark-theme .settings-row small {
     color: #d94852;
 }
 
+.payment-value-button {
+    padding: 4px 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.payment-value-button:hover,
+.payment-value-button:focus-visible {
+    text-decoration: underline;
+    outline: none;
+}
+
 .paid-button {
     display: grid;
     flex: 0 0 31px;
@@ -491,7 +503,10 @@ body.dark-theme .paid-button {
     border-radius: 20px;
     color: white;
     box-shadow: 0 10px 18px rgba(19, 25, 43, 0.16);
+    cursor: pointer;
 }
+
+.credit-card:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 
 .credit-card::after {
     position: absolute;
@@ -509,6 +524,21 @@ body.dark-theme .paid-button {
 .card-available { position: relative; z-index: 1; font-size: 1.22rem; font-weight: 800; }
 .card-footer { position: relative; z-index: 1; display: flex; justify-content: space-between; margin-top: 12px; font-size: 0.72rem; opacity: 0.92; }
 .card-actions { position: absolute; z-index: 2; top: 14px; right: 14px; padding: 6px 8px; border-radius: 8px; background: rgba(255, 255, 255, 0.18); color: white; font-size: 0.75rem; font-weight: 800; }
+
+.card-usage-summary {
+    padding: 16px;
+    margin-bottom: 8px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--surface);
+}
+
+.card-usage-numbers span, .card-usage-footer small { color: var(--muted); font-size: 0.76rem; }
+.card-usage-numbers strong { display: block; margin-top: 4px; font-size: 1.15rem; }
+.card-usage-numbers strong small { color: var(--muted); font-size: 0.8rem; font-weight: 500; }
+.card-usage-bar { overflow: hidden; height: 10px; margin-top: 13px; border-radius: 20px; background: var(--line); }
+.card-usage-bar span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.card-usage-footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
 
 /* ================================================================
    NAVEGAÇÃO E BOTÃO FLUTUANTE
@@ -707,6 +737,15 @@ body.dark-theme .import-notice {
     color: #d94852;
 }
 
+.fixed-category-label {
+    padding: 6px 8px;
+    border-radius: 8px;
+    background: #eef0f4;
+    color: var(--muted);
+    font-size: 0.7rem;
+    font-weight: 800;
+}
+
 body.dark-theme .small-action {
     background: #303126;
     color: #e5be57;
@@ -715,6 +754,11 @@ body.dark-theme .small-action {
 body.dark-theme .small-action.danger {
     background: #422629;
     color: #ff9c98;
+}
+
+body.dark-theme .fixed-category-label {
+    background: #303126;
+    color: #d3c8a7;
 }
 
 /* ================================================================
